@@ -88,6 +88,8 @@ class ParentalControlsCoordinator:
         self._play_start: dict[str, datetime] = {}
         # Device enabled state: entity_id -> bool
         self._device_enabled: dict[str, bool] = {}
+        # Global master toggle
+        self._global_enabled: bool = True
         # Entity update callbacks
         self._listeners: list[Any] = []
 
@@ -160,10 +162,34 @@ class ParentalControlsCoordinator:
         """Restore strike count from persistent storage."""
         self._strikes[entity_id] = count
 
+    # --- Global Enabled State ---
+
+    @property
+    def global_enabled(self) -> bool:
+        """Check if parental controls are globally enabled."""
+        return self._global_enabled
+
+    def set_global_enabled(self, enabled: bool) -> None:
+        """Set the global parental controls toggle."""
+        self._global_enabled = enabled
+        _LOGGER.info("Global parental controls %s", "enabled" if enabled else "disabled")
+        # Notify all device entities to update their state
+        for entity_id in self.monitored_players:
+            self._notify_entity_update(entity_id)
+
+    def restore_global_enabled(self, enabled: bool) -> None:
+        """Restore global enabled state from persistent storage."""
+        self._global_enabled = enabled
+
     # --- Device Enabled State ---
 
     def is_device_enabled(self, entity_id: str) -> bool:
-        """Check if parental controls are enabled for a device."""
+        """Check if parental controls are enabled for a device.
+
+        Both the global toggle AND the per-device toggle must be ON.
+        """
+        if not self._global_enabled:
+            return False
         return self._device_enabled.get(entity_id, True)
 
     def set_device_enabled(self, entity_id: str, enabled: bool) -> None:

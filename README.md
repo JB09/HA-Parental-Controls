@@ -89,6 +89,7 @@ Global entities:
 
 | Entity | Type | Description |
 |--------|------|-------------|
+| `switch.parental_controls_master` | Switch | **Global ON/OFF** — disables ALL monitoring when OFF |
 | `sensor.parental_controls_last_blocked` | Sensor | Last blocked content info |
 | `number.parental_controls_youtube_limit` | Number | YouTube daily limit (min) |
 | `number.parental_controls_screen_time_limit` | Number | Total screen time limit (min) |
@@ -113,6 +114,8 @@ Global entities:
 type: entities
 title: Parental Controls
 entities:
+  - entity: switch.parental_controls_master
+  - type: divider
   - entity: switch.parental_controls_apple_tv_living_room_parental_controls
   - entity: sensor.parental_controls_apple_tv_living_room_strikes
   - entity: binary_sensor.parental_controls_apple_tv_living_room_locked

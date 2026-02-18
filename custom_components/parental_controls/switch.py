@@ -33,12 +33,72 @@ async def async_setup_entry(
         config_entry.options.get(CONF_MONITORED_PLAYERS, []),
     )
 
-    entities: list[SwitchEntity] = []
+    entities: list[SwitchEntity] = [
+        GlobalControlSwitch(coordinator, config_entry),
+    ]
     for player_id in players:
         entities.append(DeviceControlSwitch(coordinator, config_entry, player_id))
         entities.append(DeviceUnlockSwitch(coordinator, config_entry, player_id))
 
     async_add_entities(entities)
+
+
+class GlobalControlSwitch(RestoreEntity, SwitchEntity):
+    """Master switch to enable/disable ALL parental controls globally."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:shield-home"
+
+    def __init__(
+        self,
+        coordinator: Any,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        self._coordinator = coordinator
+        self._config_entry = config_entry
+        self._attr_unique_id = f"{config_entry.entry_id}_global_control"
+        self._attr_name = "Parental controls master"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, config_entry.entry_id)},
+            "name": "Parental Controls",
+            "manufacturer": "Custom",
+            "model": "Media Monitor",
+            "entry_type": "service",
+        }
+
+    async def async_added_to_hass(self) -> None:
+        """Restore state on startup."""
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state:
+            is_on = last_state.state == "on"
+        else:
+            is_on = True  # Default: enabled
+        self._coordinator.restore_global_enabled(is_on)
+        self._coordinator.register_listener(self._handle_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up."""
+        self._coordinator.unregister_listener(self._handle_update)
+
+    @callback
+    def _handle_update(self, entity_id: str) -> None:
+        """Handle coordinator update."""
+        self.async_write_ha_state()
+
+    @property
+    def is_on(self) -> bool:
+        """Return if parental controls are globally enabled."""
+        return self._coordinator.global_enabled
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Enable parental controls globally."""
+        self._coordinator.set_global_enabled(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable parental controls globally."""
+        self._coordinator.set_global_enabled(False)
 
 
 class DeviceControlSwitch(RestoreEntity, SwitchEntity):
