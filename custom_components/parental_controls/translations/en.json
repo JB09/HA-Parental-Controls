@@ -48,11 +48,17 @@
         }
       }
     },
+    "error": {
+      "tts_service_invalid_format": "TTS service must be in 'domain.service' format (e.g., tts.google_translate_say)."
+    },
     "abort": {
       "already_configured": "Parental Controls is already configured."
     }
   },
   "options": {
+    "error": {
+      "tts_service_invalid_format": "TTS service must be in 'domain.service' format (e.g., tts.google_translate_say)."
+    },
     "step": {
       "init": {
         "title": "Parental Controls Options",

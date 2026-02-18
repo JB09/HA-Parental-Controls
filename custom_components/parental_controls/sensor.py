@@ -108,7 +108,11 @@ class StrikeSensor(ParentalControlsSensorBase):
                 count = int(float(last_state.state))
                 self._coordinator.restore_strikes(self._player_entity_id, count)
             except (ValueError, TypeError):
-                pass
+                _LOGGER.warning(
+                    "Failed to restore strike count for %s from state '%s'",
+                    self._player_entity_id,
+                    last_state.state,
+                )
 
     @property
     def native_value(self) -> int:
@@ -156,7 +160,11 @@ class UsageTodaySensor(ParentalControlsSensorBase):
                     self._player_entity_id, total, app_usage
                 )
             except (ValueError, TypeError):
-                pass
+                _LOGGER.warning(
+                    "Failed to restore usage for %s from state '%s'",
+                    self._player_entity_id,
+                    last_state.state,
+                )
 
     @property
     def native_value(self) -> float:

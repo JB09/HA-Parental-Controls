@@ -38,15 +38,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = ParentalControlsCoordinator(hass, entry)
     entry.runtime_data = coordinator
 
-    # Forward setup to all platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORM_LIST)
-
     # Get monitored players
     players = entry.data.get(
         CONF_MONITORED_PLAYERS, entry.options.get(CONF_MONITORED_PLAYERS, [])
     )
 
-    # Register state change listener for monitored media_players
+    # Register state change listener BEFORE platform setup to avoid
+    # missing state changes that occur during entity creation.
     if players:
         cancel_state_listener = async_track_state_change_event(
             hass,
@@ -65,10 +63,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     entry.async_on_unload(cancel_midnight)
 
+    # Forward setup to all platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORM_LIST)
+
     # Register services
     _register_services(hass, coordinator)
 
-    # Listen for options updates to re-register state listeners
+    # Listen for options updates from the options flow only.
+    # Number/select entities use runtime_settings (no reload needed).
+    # Only the options flow UI triggers this, which is expected to reload.
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     _LOGGER.info(
@@ -81,13 +84,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    # Persist runtime settings (number/select changes) to config entry
+    # so they survive restarts without causing reloads during operation.
+    coordinator: ParentalControlsCoordinator = entry.runtime_data
+    coordinator.persist_runtime_settings()
+
     return await hass.config_entries.async_unload_platforms(entry, PLATFORM_LIST)
 
 
 async def _async_update_listener(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:
-    """Handle options update by reloading the entry."""
+    """Handle options flow update by reloading the entry."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 

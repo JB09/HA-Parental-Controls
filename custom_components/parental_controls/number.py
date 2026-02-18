@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -29,11 +29,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up number entities from a config entry."""
+    coordinator = config_entry.runtime_data
     async_add_entities(
         [
-            YouTubeLimitNumber(config_entry),
-            ScreenTimeLimitNumber(config_entry),
-            MaxStrikesNumber(config_entry),
+            YouTubeLimitNumber(coordinator, config_entry),
+            ScreenTimeLimitNumber(coordinator, config_entry),
+            MaxStrikesNumber(coordinator, config_entry),
         ]
     )
 
@@ -44,8 +45,9 @@ class ParentalControlsNumberBase(NumberEntity):
     _attr_has_entity_name = True
     _attr_mode = NumberMode.BOX
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
+        self._coordinator = coordinator
         self._config_entry = config_entry
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
@@ -55,19 +57,19 @@ class ParentalControlsNumberBase(NumberEntity):
             "entry_type": "service",
         }
 
-    def _get_option(self, key: str, default: Any) -> Any:
-        """Get value from options or data."""
-        if key in self._config_entry.options:
-            return self._config_entry.options[key]
-        return self._config_entry.data.get(key, default)
+    async def async_added_to_hass(self) -> None:
+        """Register for updates."""
+        await super().async_added_to_hass()
+        self._coordinator.register_listener(self._handle_update)
 
-    def _set_option(self, key: str, value: Any) -> None:
-        """Update an option value."""
-        new_options = dict(self._config_entry.options)
-        new_options[key] = value
-        self.hass.config_entries.async_update_entry(
-            self._config_entry, options=new_options
-        )
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up."""
+        self._coordinator.unregister_listener(self._handle_update)
+
+    @callback
+    def _handle_update(self, entity_id: str) -> None:
+        """Handle coordinator update."""
+        self.async_write_ha_state()
 
 
 class YouTubeLimitNumber(ParentalControlsNumberBase):
@@ -79,20 +81,22 @@ class YouTubeLimitNumber(ParentalControlsNumberBase):
     _attr_native_step = 15
     _attr_native_unit_of_measurement = "min"
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_youtube_limit"
         self._attr_name = "YouTube daily limit"
 
     @property
     def native_value(self) -> float:
         """Return current YouTube daily limit."""
-        return self._get_option(CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT)
+        return self._coordinator._get_option(
+            CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT
+        )
 
     async def async_set_native_value(self, value: float) -> None:
         """Set a new YouTube daily limit."""
-        self._set_option(CONF_YOUTUBE_DAILY_LIMIT, value)
+        self._coordinator.set_runtime_setting(CONF_YOUTUBE_DAILY_LIMIT, value)
 
 
 class ScreenTimeLimitNumber(ParentalControlsNumberBase):
@@ -104,22 +108,22 @@ class ScreenTimeLimitNumber(ParentalControlsNumberBase):
     _attr_native_step = 15
     _attr_native_unit_of_measurement = "min"
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_screen_time_limit"
         self._attr_name = "Screen time daily limit"
 
     @property
     def native_value(self) -> float:
         """Return current screen time daily limit."""
-        return self._get_option(
+        return self._coordinator._get_option(
             CONF_SCREEN_TIME_DAILY_LIMIT, DEFAULT_SCREEN_TIME_DAILY_LIMIT
         )
 
     async def async_set_native_value(self, value: float) -> None:
         """Set a new screen time daily limit."""
-        self._set_option(CONF_SCREEN_TIME_DAILY_LIMIT, value)
+        self._coordinator.set_runtime_setting(CONF_SCREEN_TIME_DAILY_LIMIT, value)
 
 
 class MaxStrikesNumber(ParentalControlsNumberBase):
@@ -130,17 +134,17 @@ class MaxStrikesNumber(ParentalControlsNumberBase):
     _attr_native_max_value = 10
     _attr_native_step = 1
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_max_strikes"
         self._attr_name = "Max strikes before lockout"
 
     @property
     def native_value(self) -> float:
         """Return current max strikes setting."""
-        return self._get_option(CONF_MAX_STRIKES, DEFAULT_MAX_STRIKES)
+        return self._coordinator._get_option(CONF_MAX_STRIKES, DEFAULT_MAX_STRIKES)
 
     async def async_set_native_value(self, value: float) -> None:
         """Set a new max strikes value."""
-        self._set_option(CONF_MAX_STRIKES, int(value))
+        self._coordinator.set_runtime_setting(CONF_MAX_STRIKES, int(value))

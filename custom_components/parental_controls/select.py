@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -32,11 +32,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up select entities from a config entry."""
+    coordinator = config_entry.runtime_data
     async_add_entities(
         [
-            ContentRatingSelect(config_entry),
-            MusicRatingSelect(config_entry),
-            FilterStrictnessSelect(config_entry),
+            ContentRatingSelect(coordinator, config_entry),
+            MusicRatingSelect(coordinator, config_entry),
+            FilterStrictnessSelect(coordinator, config_entry),
         ]
     )
 
@@ -46,8 +47,9 @@ class ParentalControlsSelectBase(SelectEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
+        self._coordinator = coordinator
         self._config_entry = config_entry
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
@@ -57,19 +59,19 @@ class ParentalControlsSelectBase(SelectEntity):
             "entry_type": "service",
         }
 
-    def _get_option(self, key: str, default: Any) -> Any:
-        """Get value from options or data."""
-        if key in self._config_entry.options:
-            return self._config_entry.options[key]
-        return self._config_entry.data.get(key, default)
+    async def async_added_to_hass(self) -> None:
+        """Register for updates."""
+        await super().async_added_to_hass()
+        self._coordinator.register_listener(self._handle_update)
 
-    def _set_option(self, key: str, value: Any) -> None:
-        """Update an option value."""
-        new_options = dict(self._config_entry.options)
-        new_options[key] = value
-        self.hass.config_entries.async_update_entry(
-            self._config_entry, options=new_options
-        )
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up."""
+        self._coordinator.unregister_listener(self._handle_update)
+
+    @callback
+    def _handle_update(self, entity_id: str) -> None:
+        """Handle coordinator update."""
+        self.async_write_ha_state()
 
 
 class ContentRatingSelect(ParentalControlsSelectBase):
@@ -77,9 +79,9 @@ class ContentRatingSelect(ParentalControlsSelectBase):
 
     _attr_icon = "mdi:certificate"
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_content_rating"
         self._attr_name = "Maximum content rating"
         self._attr_options = CONTENT_RATINGS
@@ -87,11 +89,13 @@ class ContentRatingSelect(ParentalControlsSelectBase):
     @property
     def current_option(self) -> str:
         """Return current content rating."""
-        return self._get_option(CONF_CONTENT_RATING_MAX, DEFAULT_CONTENT_RATING)
+        return self._coordinator._get_option(
+            CONF_CONTENT_RATING_MAX, DEFAULT_CONTENT_RATING
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Set a new content rating."""
-        self._set_option(CONF_CONTENT_RATING_MAX, option)
+        self._coordinator.set_runtime_setting(CONF_CONTENT_RATING_MAX, option)
 
 
 class MusicRatingSelect(ParentalControlsSelectBase):
@@ -99,9 +103,9 @@ class MusicRatingSelect(ParentalControlsSelectBase):
 
     _attr_icon = "mdi:music-note"
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_music_rating"
         self._attr_name = "Music rating policy"
         self._attr_options = MUSIC_RATINGS
@@ -109,11 +113,13 @@ class MusicRatingSelect(ParentalControlsSelectBase):
     @property
     def current_option(self) -> str:
         """Return current music rating."""
-        return self._get_option(CONF_MUSIC_RATING_MAX, DEFAULT_MUSIC_RATING)
+        return self._coordinator._get_option(
+            CONF_MUSIC_RATING_MAX, DEFAULT_MUSIC_RATING
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Set a new music rating."""
-        self._set_option(CONF_MUSIC_RATING_MAX, option)
+        self._coordinator.set_runtime_setting(CONF_MUSIC_RATING_MAX, option)
 
 
 class FilterStrictnessSelect(ParentalControlsSelectBase):
@@ -121,9 +127,9 @@ class FilterStrictnessSelect(ParentalControlsSelectBase):
 
     _attr_icon = "mdi:filter-variant"
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
-        super().__init__(config_entry)
+        super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_filter_strictness"
         self._attr_name = "Filter strictness"
         self._attr_options = FILTER_STRICTNESS_OPTIONS
@@ -131,8 +137,10 @@ class FilterStrictnessSelect(ParentalControlsSelectBase):
     @property
     def current_option(self) -> str:
         """Return current strictness level."""
-        return self._get_option(CONF_FILTER_STRICTNESS, DEFAULT_FILTER_STRICTNESS)
+        return self._coordinator._get_option(
+            CONF_FILTER_STRICTNESS, DEFAULT_FILTER_STRICTNESS
+        )
 
     async def async_select_option(self, option: str) -> None:
         """Set a new strictness level."""
-        self._set_option(CONF_FILTER_STRICTNESS, option)
+        self._coordinator.set_runtime_setting(CONF_FILTER_STRICTNESS, option)

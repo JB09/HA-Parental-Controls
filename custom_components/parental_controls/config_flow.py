@@ -197,9 +197,14 @@ class ParentalControlsConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Step 4: Configure blocking behavior."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_openai()
+            tts_service = user_input.get(CONF_TTS_SERVICE, "")
+            if tts_service and "." not in tts_service:
+                errors[CONF_TTS_SERVICE] = "tts_service_invalid_format"
+            else:
+                self._data.update(user_input)
+                return await self.async_step_openai()
 
         return self.async_show_form(
             step_id="blocking",
@@ -215,6 +220,7 @@ class ParentalControlsConfigFlow(
                     ),
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_openai(
@@ -273,8 +279,13 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Manage all options in a single form."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            tts_service = user_input.get(CONF_TTS_SERVICE, "")
+            if tts_service and "." not in tts_service:
+                errors[CONF_TTS_SERVICE] = "tts_service_invalid_format"
+            else:
+                return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
             step_id="init",
@@ -399,4 +410,5 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                     ),
                 }
             ),
+            errors=errors,
         )

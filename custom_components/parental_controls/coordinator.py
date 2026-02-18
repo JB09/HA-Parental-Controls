@@ -90,6 +90,10 @@ class ParentalControlsCoordinator:
         self._device_enabled: dict[str, bool] = {}
         # Global master toggle
         self._global_enabled: bool = True
+        # Runtime settings: mutable overrides for config entry options.
+        # Written by number/select entities, checked before config_entry.options.
+        # Persisted to config entry only on unload to avoid reload loops.
+        self._runtime_settings: dict[str, Any] = {}
         # Entity update callbacks
         self._listeners: list[Any] = []
 
@@ -99,10 +103,33 @@ class ParentalControlsCoordinator:
         return self._get_option(CONF_MONITORED_PLAYERS, [])
 
     def _get_option(self, key: str, default: Any) -> Any:
-        """Get a config value from options (preferred) or data."""
+        """Get a config value: runtime_settings > options > data > default."""
+        if key in self._runtime_settings:
+            return self._runtime_settings[key]
         if key in self.config_entry.options:
             return self.config_entry.options[key]
         return self.config_entry.data.get(key, default)
+
+    def set_runtime_setting(self, key: str, value: Any) -> None:
+        """Set a runtime setting (no config entry update, no reload)."""
+        self._runtime_settings[key] = value
+        # Notify entities so they reflect the new value
+        for entity_id in self.monitored_players:
+            self._notify_entity_update(entity_id)
+
+    def persist_runtime_settings(self) -> None:
+        """Persist runtime settings to config entry options.
+
+        Called during async_unload_entry so values survive restarts
+        without triggering a reload during normal operation.
+        """
+        if not self._runtime_settings:
+            return
+        new_options = dict(self.config_entry.options)
+        new_options.update(self._runtime_settings)
+        self.hass.config_entries.async_update_entry(
+            self.config_entry, options=new_options
+        )
 
     def _get_blocked_apps(self) -> list[str]:
         """Get normalized blocked apps list."""
@@ -325,6 +352,16 @@ class ParentalControlsCoordinator:
 
     async def async_handle_media_state_change(self, event: Event) -> None:
         """Handle media_player state change events."""
+        try:
+            await self._handle_media_state_change_inner(event)
+        except Exception:
+            _LOGGER.exception(
+                "Unhandled error processing state change for %s",
+                event.data.get("entity_id", "unknown"),
+            )
+
+    async def _handle_media_state_change_inner(self, event: Event) -> None:
+        """Inner handler for media_player state changes."""
         entity_id = event.data.get("entity_id", "")
         new_state = event.data.get("new_state")
         old_state = event.data.get("old_state")
@@ -509,7 +546,9 @@ class ParentalControlsCoordinator:
                 blocking=True,
             )
         except Exception:
-            _LOGGER.debug("media_pause failed for %s, trying media_stop", entity_id)
+            _LOGGER.warning(
+                "media_pause failed for %s", entity_id, exc_info=True
+            )
 
         # Step 2: Stop
         try:
@@ -520,7 +559,9 @@ class ParentalControlsCoordinator:
                 blocking=True,
             )
         except Exception:
-            _LOGGER.debug("media_stop failed for %s", entity_id)
+            _LOGGER.warning(
+                "media_stop failed for %s", entity_id, exc_info=True
+            )
 
         # Step 3: TTS announcement (if enabled)
         tts_enabled = self._get_option(CONF_TTS_ENABLED, DEFAULT_TTS_ENABLED)
@@ -545,8 +586,15 @@ class ParentalControlsCoordinator:
                         },
                         blocking=False,
                     )
+                else:
+                    _LOGGER.warning(
+                        "TTS service '%s' is not in 'domain.service' format",
+                        tts_service,
+                    )
             except Exception:
-                _LOGGER.debug("TTS announcement failed for %s", entity_id)
+                _LOGGER.warning(
+                    "TTS announcement failed for %s", entity_id, exc_info=True
+                )
 
         # Step 4: Persistent notification
         strikes = self.get_strikes(entity_id)
@@ -575,7 +623,7 @@ class ParentalControlsCoordinator:
                 blocking=False,
             )
         except Exception:
-            _LOGGER.debug("Persistent notification failed")
+            _LOGGER.warning("Persistent notification failed", exc_info=True)
 
         # Step 5: Fire custom event
         self.hass.bus.async_fire(
