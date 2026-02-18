@@ -1,0 +1,45 @@
+unlock_device:
+  name: Unlock Device
+  description: Reset strikes and unlock a specific media player device.
+  fields:
+    entity_id:
+      name: Media Player Entity
+      description: The media_player entity ID to unlock.
+      required: true
+      example: "media_player.apple_tv_living_room"
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+
+unlock_all:
+  name: Unlock All Devices
+  description: Reset strikes and unlock all monitored media player devices.
+
+clear_cache:
+  name: Clear AI Cache
+  description: Clear all cached OpenAI content analysis results.
+
+add_blocked_app:
+  name: Add Blocked App
+  description: Add an app name to the blocked apps list.
+  fields:
+    app_name:
+      name: App Name
+      description: The app name to block (e.g., "TikTok").
+      required: true
+      example: "TikTok"
+      selector:
+        text:
+
+remove_blocked_app:
+  name: Remove Blocked App
+  description: Remove an app name from the blocked apps list.
+  fields:
+    app_name:
+      name: App Name
+      description: The app name to unblock.
+      required: true
+      example: "TikTok"
+      selector:
+        text:

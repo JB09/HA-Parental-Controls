@@ -1,0 +1,11 @@
+{
+  "domain": "parental_controls",
+  "name": "Parental Controls",
+  "version": "0.1.0",
+  "config_flow": true,
+  "iot_class": "local_push",
+  "codeowners": ["@JB09"],
+  "documentation": "https://github.com/JB09/HA-Parental-Controls",
+  "issue_tracker": "https://github.com/JB09/HA-Parental-Controls/issues",
+  "homeassistant": "2024.1.0"
+}

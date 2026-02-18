@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Devices",
+        "description": "Choose the media player devices to monitor with parental controls.",
+        "data": {
+          "monitored_players": "Media players to monitor"
+        }
+      },
+      "content_rules": {
+        "title": "Content Rules",
+        "description": "Configure which apps and content types to block or allow. Use comma-separated lists.",
+        "data": {
+          "blocked_apps": "Blocked apps (comma-separated)",
+          "allowed_apps": "Always allowed apps (comma-separated)",
+          "blocked_keywords": "Blocked keywords in titles (comma-separated)",
+          "content_rating_max": "Maximum content rating",
+          "music_rating_max": "Music rating policy",
+          "filter_strictness": "Title filter strictness"
+        }
+      },
+      "time_limits": {
+        "title": "Time & Strike Limits",
+        "description": "Set daily usage limits and the strike threshold for device lockout.",
+        "data": {
+          "youtube_daily_limit": "YouTube daily limit (minutes)",
+          "screen_time_daily_limit": "Total screen time daily limit (minutes)",
+          "screen_time_start": "Screen time allowed from",
+          "screen_time_end": "Screen time allowed until",
+          "max_strikes": "Strikes before device lockout"
+        }
+      },
+      "blocking": {
+        "title": "Blocking Behavior",
+        "description": "Configure how blocked content is handled. TTS will announce blocks on supported devices (e.g., Amazon Echo).",
+        "data": {
+          "tts_enabled": "Enable TTS announcements",
+          "tts_service": "TTS service (e.g., tts.google_translate_say)"
+        }
+      },
+      "openai": {
+        "title": "AI Content Analysis",
+        "description": "Optionally use OpenAI (via the HA Conversation integration) to analyze content that passes local filters. This uses tokens but catches content that keyword matching misses.",
+        "data": {
+          "openai_enabled": "Enable OpenAI content analysis",
+          "openai_agent_id": "OpenAI conversation agent ID (leave blank for default)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Parental Controls is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Parental Controls Options",
+        "description": "Modify parental control settings. Changes take effect immediately.",
+        "data": {
+          "monitored_players": "Media players to monitor",
+          "blocked_apps": "Blocked apps (comma-separated)",
+          "allowed_apps": "Always allowed apps (comma-separated)",
+          "blocked_keywords": "Blocked keywords in titles (comma-separated)",
+          "content_rating_max": "Maximum content rating",
+          "music_rating_max": "Music rating policy",
+          "filter_strictness": "Title filter strictness",
+          "youtube_daily_limit": "YouTube daily limit (minutes)",
+          "screen_time_daily_limit": "Total screen time daily limit (minutes)",
+          "screen_time_start": "Screen time allowed from",
+          "screen_time_end": "Screen time allowed until",
+          "max_strikes": "Strikes before device lockout",
+          "tts_enabled": "Enable TTS announcements",
+          "tts_service": "TTS service (e.g., tts.google_translate_say)",
+          "openai_enabled": "Enable OpenAI content analysis",
+          "openai_agent_id": "OpenAI conversation agent ID"
+        }
+      }
+    }
+  }
+}
