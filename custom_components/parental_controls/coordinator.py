@@ -580,23 +580,39 @@ class ParentalControlsCoordinator:
                 else "This content has been blocked by parental controls."
             )
             try:
-                # Parse service: e.g., "tts.google_translate_say" -> domain="tts", service="google_translate_say"
-                parts = tts_service.split(".", 1)
-                if len(parts) == 2:
+                # Modern HA: TTS engines are entities (e.g. tts.piper).
+                # Use the tts.speak service with the engine entity_id.
+                tts_state = self.hass.states.get(tts_service)
+                if tts_state is not None:
                     await self.hass.services.async_call(
-                        parts[0],
-                        parts[1],
+                        "tts",
+                        "speak",
                         {
-                            "entity_id": entity_id,
+                            "entity_id": tts_service,
+                            "media_player_entity_id": entity_id,
                             "message": tts_message,
                         },
                         blocking=False,
                     )
                 else:
-                    _LOGGER.warning(
-                        "TTS service '%s' is not in 'domain.service' format",
-                        tts_service,
-                    )
+                    # Legacy fallback: call as domain.service directly
+                    # e.g. "tts.google_translate_say" -> domain="tts", service="google_translate_say"
+                    parts = tts_service.split(".", 1)
+                    if len(parts) == 2:
+                        await self.hass.services.async_call(
+                            parts[0],
+                            parts[1],
+                            {
+                                "entity_id": entity_id,
+                                "message": tts_message,
+                            },
+                            blocking=False,
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "TTS service '%s' is not in 'domain.service' format",
+                            tts_service,
+                        )
             except Exception:
                 _LOGGER.warning(
                     "TTS announcement failed for %s", entity_id, exc_info=True
