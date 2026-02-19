@@ -53,6 +53,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         entry.async_on_unload(cancel_state_listener)
 
+    # Register listener for companion app actionable notification responses
+    async def _handle_mobile_action(event: Event) -> None:
+        """Handle mobile_app_notification_action events."""
+        action = event.data.get("action", "")
+        if action.startswith("PARENTAL_CONTROLS_"):
+            await coordinator.handle_push_action(action)
+
+    cancel_mobile_action = hass.bus.async_listen(
+        "mobile_app_notification_action",
+        _handle_mobile_action,
+    )
+    entry.async_on_unload(cancel_mobile_action)
+
     # Register midnight reset for daily usage counters
     cancel_midnight = async_track_time_change(
         hass,

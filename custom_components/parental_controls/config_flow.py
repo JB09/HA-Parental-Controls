@@ -25,6 +25,8 @@ from .const import (
     CONF_MEDIA_USAGE_END,
     CONF_MEDIA_USAGE_START,
     CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+    CONF_PUSH_NOTIFY_ENABLED,
+    CONF_PUSH_NOTIFY_SERVICES,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
     CONF_YOUTUBE_DAILY_LIMIT,
@@ -42,6 +44,8 @@ from .const import (
     DEFAULT_MUSIC_RATING,
     DEFAULT_OPENAI_AGENT_ID,
     DEFAULT_OPENAI_ENABLED,
+    DEFAULT_PUSH_NOTIFY_ENABLED,
+    DEFAULT_PUSH_NOTIFY_SERVICES,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
     DEFAULT_YOUTUBE_DAILY_LIMIT,
@@ -119,6 +123,44 @@ def _build_agent_selector(
         return selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=agent_options,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+    return selector.TextSelector(
+        selector.TextSelectorConfig(multiline=False)
+    )
+
+
+def _get_mobile_app_notify_options(
+    hass: HomeAssistant,
+) -> list[selector.SelectOptionDict]:
+    """Build a list of available mobile app notification targets.
+
+    The HA Companion App registers notify services named ``mobile_app_<device>``.
+    We enumerate services in the ``notify`` domain to find them.
+    """
+    options: list[selector.SelectOptionDict] = []
+    notify_services = hass.services.async_services().get("notify", {})
+    for service_name in sorted(notify_services):
+        if service_name.startswith("mobile_app_"):
+            label = service_name.replace("mobile_app_", "").replace("_", " ").title()
+            options.append(
+                selector.SelectOptionDict(value=service_name, label=label)
+            )
+    return options
+
+
+def _build_mobile_app_selector(
+    hass: HomeAssistant,
+) -> selector.SelectSelector | selector.TextSelector:
+    """Build a multi-select for mobile app notify services."""
+    mobile_options = _get_mobile_app_notify_options(hass)
+    if mobile_options:
+        return selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=mobile_options,
+                multiple=True,
                 custom_value=True,
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
@@ -290,6 +332,7 @@ class ParentalControlsConfigFlow(
                 return await self.async_step_openai()
 
         tts_selector = _build_tts_selector(self.hass)
+        mobile_app_selector = _build_mobile_app_selector(self.hass)
 
         return self.async_show_form(
             step_id="blocking",
@@ -301,6 +344,13 @@ class ParentalControlsConfigFlow(
                     vol.Optional(
                         CONF_TTS_SERVICE, default=DEFAULT_TTS_SERVICE
                     ): tts_selector,
+                    vol.Optional(
+                        CONF_PUSH_NOTIFY_ENABLED, default=DEFAULT_PUSH_NOTIFY_ENABLED
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_PUSH_NOTIFY_SERVICES,
+                        default=DEFAULT_PUSH_NOTIFY_SERVICES,
+                    ): mobile_app_selector,
                 }
             ),
             errors=errors,
@@ -368,6 +418,7 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
 
         tts_selector = _build_tts_selector(self.hass)
         agent_selector = _build_agent_selector(self.hass)
+        mobile_app_selector = _build_mobile_app_selector(self.hass)
 
         return self.async_show_form(
             step_id="init",
@@ -485,6 +536,18 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                         CONF_TTS_SERVICE,
                         default=self._get_current(CONF_TTS_SERVICE, DEFAULT_TTS_SERVICE),
                     ): tts_selector,
+                    vol.Optional(
+                        CONF_PUSH_NOTIFY_ENABLED,
+                        default=self._get_current(
+                            CONF_PUSH_NOTIFY_ENABLED, DEFAULT_PUSH_NOTIFY_ENABLED
+                        ),
+                    ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_PUSH_NOTIFY_SERVICES,
+                        default=self._get_current(
+                            CONF_PUSH_NOTIFY_SERVICES, DEFAULT_PUSH_NOTIFY_SERVICES
+                        ),
+                    ): mobile_app_selector,
                     vol.Optional(
                         CONF_OPENAI_ENABLED,
                         default=self._get_current(CONF_OPENAI_ENABLED, DEFAULT_OPENAI_ENABLED),

@@ -22,6 +22,8 @@ CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS = "media_usage_track_only_allowed_hour
 CONF_MAX_STRIKES = "max_strikes"
 CONF_TTS_ENABLED = "tts_enabled"
 CONF_TTS_SERVICE = "tts_service"
+CONF_PUSH_NOTIFY_ENABLED = "push_notify_enabled"
+CONF_PUSH_NOTIFY_SERVICES = "push_notify_services"
 CONF_OPENAI_ENABLED = "openai_enabled"
 CONF_OPENAI_AGENT_ID = "openai_agent_id"
 CONF_FILTER_STRICTNESS = "filter_strictness"
@@ -40,6 +42,8 @@ DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS = True
 DEFAULT_MAX_STRIKES = 3
 DEFAULT_TTS_ENABLED = False
 DEFAULT_TTS_SERVICE = ""
+DEFAULT_PUSH_NOTIFY_ENABLED = False
+DEFAULT_PUSH_NOTIFY_SERVICES: list[str] = []
 DEFAULT_OPENAI_ENABLED = False
 DEFAULT_OPENAI_AGENT_ID = ""
 DEFAULT_FILTER_STRICTNESS = "moderate"
@@ -54,6 +58,9 @@ LOCKOUT_COOLDOWN_SECONDS = 10
 
 # OpenAI cache max entries
 OPENAI_CACHE_MAX_ENTRIES = 200
+
+# Actionable notification action IDs
+ACTION_UNLOCK_DEVICE = "PARENTAL_CONTROLS_UNLOCK"
 
 # Title pattern word lists organized by category and strictness
 # Word-boundary matching (\b) is applied at filter time to avoid false positives.

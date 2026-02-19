@@ -29,6 +29,8 @@ from .const import (
     CONF_MEDIA_USAGE_END,
     CONF_MEDIA_USAGE_START,
     CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+    CONF_PUSH_NOTIFY_ENABLED,
+    CONF_PUSH_NOTIFY_SERVICES,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
     CONF_YOUTUBE_DAILY_LIMIT,
@@ -45,9 +47,12 @@ from .const import (
     DEFAULT_MEDIA_USAGE_END,
     DEFAULT_MEDIA_USAGE_START,
     DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+    DEFAULT_PUSH_NOTIFY_ENABLED,
+    DEFAULT_PUSH_NOTIFY_SERVICES,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
     DEFAULT_YOUTUBE_DAILY_LIMIT,
+    ACTION_UNLOCK_DEVICE,
     DOMAIN,
     LOCKOUT_COOLDOWN_SECONDS,
     OPENAI_CACHE_MAX_ENTRIES,
@@ -722,7 +727,13 @@ class ParentalControlsCoordinator:
         except Exception:
             _LOGGER.warning("Persistent notification failed", exc_info=True)
 
-        # Step 5: Fire custom event
+        # Step 5: Push notification to companion app (only on lockout)
+        if locked:
+            await self._send_push_notifications(
+                entity_id, friendly, result.reason, strikes, max_strikes,
+            )
+
+        # Step 6: Fire custom event
         self.hass.bus.async_fire(
             f"{DOMAIN}_blocked",
             {
@@ -737,3 +748,121 @@ class ParentalControlsCoordinator:
         )
 
         self._notify_entity_update(entity_id)
+
+    # ------------------------------------------------------------------
+    # Companion app push notifications
+    # ------------------------------------------------------------------
+
+    def _resolve_push_services(self) -> list[str]:
+        """Return the list of mobile app notify service names."""
+        push_services = self._get_option(
+            CONF_PUSH_NOTIFY_SERVICES, DEFAULT_PUSH_NOTIFY_SERVICES
+        )
+        # Handle comma-separated string from text-selector fallback
+        if isinstance(push_services, str):
+            return [s.strip() for s in push_services.split(",") if s.strip()]
+        return list(push_services) if push_services else []
+
+    async def _send_push_notifications(
+        self,
+        entity_id: str,
+        friendly_name: str,
+        reason: str,
+        strikes: int,
+        max_strikes: int,
+    ) -> None:
+        """Send push notifications to configured companion app devices on lockout."""
+        push_enabled = self._get_option(
+            CONF_PUSH_NOTIFY_ENABLED, DEFAULT_PUSH_NOTIFY_ENABLED
+        )
+        if not push_enabled:
+            return
+
+        push_services = self._resolve_push_services()
+        if not push_services:
+            return
+
+        # Build notification content
+        if max_strikes == 0:
+            strikes_text = f"Strikes: {strikes} (no limit)"
+        else:
+            strikes_text = f"Strikes: {strikes}/{max_strikes}"
+
+        message = (
+            f"{friendly_name}: {reason}\n"
+            f"{strikes_text}\n"
+            "Device is LOCKED."
+        )
+
+        notification_data: dict[str, Any] = {
+            "tag": f"parental_controls_{entity_id}",
+            "importance": "high",
+            "push": {"sound": "default"},
+            "actions": [
+                {
+                    "action": f"{ACTION_UNLOCK_DEVICE}_{entity_id}",
+                    "title": "Unlock Device",
+                }
+            ],
+        }
+
+        for service_name in push_services:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service_name,
+                    {
+                        "title": "Parental Controls Alert",
+                        "message": message,
+                        "data": notification_data,
+                    },
+                    blocking=False,
+                )
+            except Exception:
+                _LOGGER.warning(
+                    "Push notification failed for notify.%s",
+                    service_name,
+                    exc_info=True,
+                )
+
+    async def handle_push_action(self, action: str) -> None:
+        """Handle an actionable notification response from the companion app.
+
+        Expected action format: ``PARENTAL_CONTROLS_UNLOCK_<entity_id>``
+        """
+        prefix = f"{ACTION_UNLOCK_DEVICE}_"
+        if not action.startswith(prefix):
+            return
+
+        entity_id = action[len(prefix):]
+        if entity_id not in self.monitored_players:
+            _LOGGER.warning(
+                "Received unlock action for unmonitored device: %s", entity_id
+            )
+            return
+
+        self.reset_strikes(entity_id)
+        _LOGGER.info(
+            "Device %s unlocked via companion app notification", entity_id
+        )
+
+        # Replace the alert notification with a confirmation
+        push_services = self._resolve_push_services()
+        for service_name in push_services:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service_name,
+                    {
+                        "title": "Parental Controls",
+                        "message": "Device unlocked successfully.",
+                        "data": {"tag": f"parental_controls_{entity_id}"},
+                    },
+                    blocking=False,
+                )
+            except Exception:
+                _LOGGER.warning(
+                    "Confirmation notification failed for notify.%s",
+                    service_name,
+                    exc_info=True,
+                )

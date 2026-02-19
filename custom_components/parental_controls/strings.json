@@ -34,10 +34,12 @@
       },
       "blocking": {
         "title": "Blocking Behavior",
-        "description": "Configure how blocked content is handled. Select a TTS entity from the list or type a custom entity ID (e.g., tts.piper).",
+        "description": "Configure how blocked content is handled. Optionally enable push notifications to receive alerts on your phone when a device is locked.",
         "data": {
           "tts_enabled": "Enable TTS announcements",
-          "tts_service": "TTS entity"
+          "tts_service": "TTS entity",
+          "push_notify_enabled": "Enable companion app notifications on lockout",
+          "push_notify_services": "Mobile devices to notify"
         }
       },
       "openai": {
@@ -80,6 +82,8 @@
           "media_usage_track_only_allowed_hours": "Only track usage during allowed hours",
           "tts_enabled": "Enable TTS announcements",
           "tts_service": "TTS entity",
+          "push_notify_enabled": "Enable companion app notifications on lockout",
+          "push_notify_services": "Mobile devices to notify",
           "openai_enabled": "Enable OpenAI content analysis",
           "openai_agent_id": "Conversation agent"
         }
