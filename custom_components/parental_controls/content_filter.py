@@ -236,8 +236,12 @@ def _check_time_limits(media: MediaInfo, config: FilterConfig) -> FilterResult |
     """Layer 8: Check daily usage time limits."""
     app_lower = media.app_name.lower()
 
-    # YouTube-specific limit
-    if "youtube" in app_lower and config.youtube_usage_today >= config.youtube_daily_limit:
+    # YouTube-specific limit (0 = unlimited)
+    if (
+        config.youtube_daily_limit > 0
+        and "youtube" in app_lower
+        and config.youtube_usage_today >= config.youtube_daily_limit
+    ):
         return FilterResult(
             action="block",
             reason=f"YouTube daily time limit reached ({config.youtube_daily_limit:.0f} minutes)",
@@ -245,8 +249,8 @@ def _check_time_limits(media: MediaInfo, config: FilterConfig) -> FilterResult |
             should_strike=False,
         )
 
-    # Total screen time limit
-    if config.total_usage_today >= config.screen_time_daily_limit:
+    # Total screen time limit (0 = unlimited)
+    if config.screen_time_daily_limit > 0 and config.total_usage_today >= config.screen_time_daily_limit:
         return FilterResult(
             action="block",
             reason=f"Total daily screen time limit reached ({config.screen_time_daily_limit:.0f} minutes)",

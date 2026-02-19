@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 
 from .const import (
@@ -47,6 +47,76 @@ from .const import (
     FILTER_STRICTNESS_OPTIONS,
     MUSIC_RATINGS,
 )
+
+
+def _get_tts_service_options(
+    hass: HomeAssistant,
+) -> list[selector.SelectOptionDict]:
+    """Build a list of available TTS service options from the HA service registry."""
+    options: list[selector.SelectOptionDict] = []
+    tts_services = hass.services.async_services().get("tts", {})
+    for service_name in sorted(tts_services):
+        if service_name == "speak":
+            continue
+        full_name = f"tts.{service_name}"
+        options.append(
+            selector.SelectOptionDict(value=full_name, label=full_name)
+        )
+    return options
+
+
+def _get_conversation_agent_options(
+    hass: HomeAssistant,
+) -> list[selector.SelectOptionDict]:
+    """Build a list of available conversation agent options."""
+    options: list[selector.SelectOptionDict] = []
+    for entity_id in sorted(hass.states.async_entity_ids("conversation")):
+        state = hass.states.get(entity_id)
+        label = (
+            state.attributes.get("friendly_name", entity_id)
+            if state
+            else entity_id
+        )
+        options.append(
+            selector.SelectOptionDict(value=entity_id, label=label)
+        )
+    return options
+
+
+def _build_tts_selector(
+    hass: HomeAssistant,
+) -> selector.SelectSelector | selector.TextSelector:
+    """Build a TTS selector: dropdown with custom entry, or plain text fallback."""
+    tts_options = _get_tts_service_options(hass)
+    if tts_options:
+        return selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=tts_options,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+    return selector.TextSelector(
+        selector.TextSelectorConfig(multiline=False)
+    )
+
+
+def _build_agent_selector(
+    hass: HomeAssistant,
+) -> selector.SelectSelector | selector.TextSelector:
+    """Build a conversation agent selector: dropdown with custom entry, or plain text fallback."""
+    agent_options = _get_conversation_agent_options(hass)
+    if agent_options:
+        return selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=agent_options,
+                custom_value=True,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+    return selector.TextSelector(
+        selector.TextSelectorConfig(multiline=False)
+    )
 
 
 class ParentalControlsConfigFlow(
@@ -183,7 +253,7 @@ class ParentalControlsConfigFlow(
                         CONF_MAX_STRIKES, default=DEFAULT_MAX_STRIKES
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1,
+                            min=0,
                             max=10,
                             step=1,
                             mode=selector.NumberSelectorMode.BOX,
@@ -206,6 +276,8 @@ class ParentalControlsConfigFlow(
                 self._data.update(user_input)
                 return await self.async_step_openai()
 
+        tts_selector = _build_tts_selector(self.hass)
+
         return self.async_show_form(
             step_id="blocking",
             data_schema=vol.Schema(
@@ -215,9 +287,7 @@ class ParentalControlsConfigFlow(
                     ): selector.BooleanSelector(),
                     vol.Optional(
                         CONF_TTS_SERVICE, default=DEFAULT_TTS_SERVICE
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=False)
-                    ),
+                    ): tts_selector,
                 }
             ),
             errors=errors,
@@ -237,6 +307,8 @@ class ParentalControlsConfigFlow(
                 data=self._data,
             )
 
+        agent_selector = _build_agent_selector(self.hass)
+
         return self.async_show_form(
             step_id="openai",
             data_schema=vol.Schema(
@@ -246,9 +318,7 @@ class ParentalControlsConfigFlow(
                     ): selector.BooleanSelector(),
                     vol.Optional(
                         CONF_OPENAI_AGENT_ID, default=DEFAULT_OPENAI_AGENT_ID
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=False)
-                    ),
+                    ): agent_selector,
                 }
             ),
         )
@@ -259,15 +329,11 @@ class ParentalControlsConfigFlow(
         config_entry: config_entries.ConfigEntry,
     ) -> ParentalControlsOptionsFlow:
         """Return the options flow handler."""
-        return ParentalControlsOptionsFlow(config_entry)
+        return ParentalControlsOptionsFlow()
 
 
 class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for Parental Controls."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     def _get_current(self, key: str, default: Any) -> Any:
         """Get current value from options or data."""
@@ -286,6 +352,9 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                 errors[CONF_TTS_SERVICE] = "tts_service_invalid_format"
             else:
                 return self.async_create_entry(title="", data=user_input)
+
+        tts_selector = _build_tts_selector(self.hass)
+        agent_selector = _build_agent_selector(self.hass)
 
         return self.async_show_form(
             step_id="init",
@@ -382,7 +451,7 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                         default=self._get_current(CONF_MAX_STRIKES, DEFAULT_MAX_STRIKES),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
-                            min=1,
+                            min=0,
                             max=10,
                             step=1,
                             mode=selector.NumberSelectorMode.BOX,
@@ -395,9 +464,7 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_TTS_SERVICE,
                         default=self._get_current(CONF_TTS_SERVICE, DEFAULT_TTS_SERVICE),
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=False)
-                    ),
+                    ): tts_selector,
                     vol.Optional(
                         CONF_OPENAI_ENABLED,
                         default=self._get_current(CONF_OPENAI_ENABLED, DEFAULT_OPENAI_ENABLED),
@@ -405,9 +472,7 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_OPENAI_AGENT_ID,
                         default=self._get_current(CONF_OPENAI_AGENT_ID, DEFAULT_OPENAI_AGENT_ID),
-                    ): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=False)
-                    ),
+                    ): agent_selector,
                 }
             ),
             errors=errors,
