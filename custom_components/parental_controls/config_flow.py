@@ -52,15 +52,22 @@ from .const import (
 def _get_tts_service_options(
     hass: HomeAssistant,
 ) -> list[selector.SelectOptionDict]:
-    """Build a list of available TTS service options from the HA service registry."""
+    """Build a list of available TTS options from TTS entities.
+
+    Modern HA registers TTS engines as entities (e.g. tts.piper) rather than
+    per-integration services.  We query the state machine for TTS entities,
+    which mirrors the pattern used for conversation agents.
+    """
     options: list[selector.SelectOptionDict] = []
-    tts_services = hass.services.async_services().get("tts", {})
-    for service_name in sorted(tts_services):
-        if service_name == "speak":
-            continue
-        full_name = f"tts.{service_name}"
+    for entity_id in sorted(hass.states.async_entity_ids("tts")):
+        state = hass.states.get(entity_id)
+        label = (
+            state.attributes.get("friendly_name", entity_id)
+            if state
+            else entity_id
+        )
         options.append(
-            selector.SelectOptionDict(value=full_name, label=full_name)
+            selector.SelectOptionDict(value=entity_id, label=label)
         )
     return options
 
