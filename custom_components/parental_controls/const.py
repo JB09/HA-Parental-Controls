@@ -4,8 +4,11 @@ from __future__ import annotations
 
 DOMAIN = "parental_controls"
 
-# Platforms
-PLATFORMS = ["sensor", "switch", "binary_sensor", "number", "select"]
+
+def device_slug(entity_id: str) -> str:
+    """Convert media_player.living_room_tv to living_room_tv."""
+    return entity_id.replace("media_player.", "").replace(".", "_")
+
 
 # Config keys
 CONF_MONITORED_PLAYERS = "monitored_players"
@@ -14,7 +17,8 @@ CONF_ALLOWED_APPS = "allowed_apps"
 CONF_BLOCKED_KEYWORDS = "blocked_keywords"
 CONF_CONTENT_RATING_MAX = "content_rating_max"
 CONF_MUSIC_RATING_MAX = "music_rating_max"
-CONF_YOUTUBE_DAILY_LIMIT = "youtube_daily_limit"
+CONF_TRACKED_APPS = "tracked_apps"
+CONF_TRACKED_APPS_DAILY_LIMIT = "tracked_apps_daily_limit"
 CONF_MEDIA_USAGE_DAILY_LIMIT = "media_usage_daily_limit"
 CONF_MEDIA_USAGE_START = "media_usage_start"
 CONF_MEDIA_USAGE_END = "media_usage_end"
@@ -22,6 +26,8 @@ CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS = "media_usage_track_only_allowed_hour
 CONF_MAX_STRIKES = "max_strikes"
 CONF_TTS_ENABLED = "tts_enabled"
 CONF_TTS_SERVICE = "tts_service"
+CONF_PUSH_NOTIFY_ENABLED = "push_notify_enabled"
+CONF_PUSH_NOTIFY_SERVICES = "push_notify_services"
 CONF_OPENAI_ENABLED = "openai_enabled"
 CONF_OPENAI_AGENT_ID = "openai_agent_id"
 CONF_FILTER_STRICTNESS = "filter_strictness"
@@ -32,7 +38,8 @@ DEFAULT_ALLOWED_APPS = "Disney+,PBS Kids,Khan Academy"
 DEFAULT_BLOCKED_KEYWORDS = "explicit,nsfw,mature,18+,uncensored"
 DEFAULT_CONTENT_RATING = "PG"
 DEFAULT_MUSIC_RATING = "Clean Only"
-DEFAULT_YOUTUBE_DAILY_LIMIT = 120  # minutes
+DEFAULT_TRACKED_APPS = "YouTube"
+DEFAULT_TRACKED_APPS_DAILY_LIMIT = 120  # minutes
 DEFAULT_MEDIA_USAGE_DAILY_LIMIT = 240  # minutes
 DEFAULT_MEDIA_USAGE_START = "08:00"
 DEFAULT_MEDIA_USAGE_END = "20:00"
@@ -40,6 +47,8 @@ DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS = True
 DEFAULT_MAX_STRIKES = 3
 DEFAULT_TTS_ENABLED = False
 DEFAULT_TTS_SERVICE = ""
+DEFAULT_PUSH_NOTIFY_ENABLED = False
+DEFAULT_PUSH_NOTIFY_SERVICES: list[str] = []
 DEFAULT_OPENAI_ENABLED = False
 DEFAULT_OPENAI_AGENT_ID = ""
 DEFAULT_FILTER_STRICTNESS = "moderate"
@@ -54,6 +63,13 @@ LOCKOUT_COOLDOWN_SECONDS = 10
 
 # OpenAI cache max entries
 OPENAI_CACHE_MAX_ENTRIES = 200
+
+# Actionable notification action IDs
+ACTION_UNLOCK_DEVICE = "PARENTAL_CONTROLS_UNLOCK"
+
+# DEPRECATED: Kept for config migration from v1 -> v2
+CONF_YOUTUBE_DAILY_LIMIT = "youtube_daily_limit"
+DEFAULT_YOUTUBE_DAILY_LIMIT = 120  # minutes
 
 # Title pattern word lists organized by category and strictness
 # Word-boundary matching (\b) is applied at filter time to avoid false positives.

@@ -7,8 +7,9 @@ orchestrates the content filter pipeline + blocking actions.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
+
+from homeassistant.util import dt as dt_util
 
 from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.const import STATE_PLAYING
@@ -29,9 +30,12 @@ from .const import (
     CONF_MEDIA_USAGE_END,
     CONF_MEDIA_USAGE_START,
     CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+    CONF_PUSH_NOTIFY_ENABLED,
+    CONF_PUSH_NOTIFY_SERVICES,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
-    CONF_YOUTUBE_DAILY_LIMIT,
+    CONF_TRACKED_APPS,
+    CONF_TRACKED_APPS_DAILY_LIMIT,
     DEFAULT_ALLOWED_APPS,
     DEFAULT_BLOCKED_APPS,
     DEFAULT_BLOCKED_KEYWORDS,
@@ -45,9 +49,13 @@ from .const import (
     DEFAULT_MEDIA_USAGE_END,
     DEFAULT_MEDIA_USAGE_START,
     DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+    DEFAULT_PUSH_NOTIFY_ENABLED,
+    DEFAULT_PUSH_NOTIFY_SERVICES,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
-    DEFAULT_YOUTUBE_DAILY_LIMIT,
+    DEFAULT_TRACKED_APPS,
+    DEFAULT_TRACKED_APPS_DAILY_LIMIT,
+    ACTION_UNLOCK_DEVICE,
     DOMAIN,
     LOCKOUT_COOLDOWN_SECONDS,
     OPENAI_CACHE_MAX_ENTRIES,
@@ -57,9 +65,9 @@ from .content_filter import (
     FilterResult,
     MediaInfo,
     build_openai_prompt,
+    cache_key,
     parse_openai_response,
     run_local_filters,
-    _cache_key,
 )
 
 if TYPE_CHECKING:
@@ -149,6 +157,11 @@ class ParentalControlsCoordinator:
         """Get normalized blocked keywords list."""
         raw = self._get_option(CONF_BLOCKED_KEYWORDS, DEFAULT_BLOCKED_KEYWORDS)
         return [k.strip().lower() for k in raw.split(",") if k.strip()]
+
+    def _get_tracked_apps(self) -> list[str]:
+        """Get normalized tracked apps list."""
+        raw = self._get_option(CONF_TRACKED_APPS, DEFAULT_TRACKED_APPS)
+        return [a.strip().lower() for a in raw.split(",") if a.strip()]
 
     # --- Strike Management ---
 
@@ -276,9 +289,19 @@ class ParentalControlsCoordinator:
         app_usage = self._app_usage_today.get(entity_id, {})
         return app_usage.get(app_name.lower(), 0.0)
 
+    def get_all_app_usage_today(self, entity_id: str) -> dict[str, float]:
+        """Get full per-app usage breakdown for a device."""
+        return dict(self._app_usage_today.get(entity_id, {}))
+
+    def get_tracked_apps_usage_today(self, entity_id: str) -> float:
+        """Get aggregate usage today across all tracked apps, in minutes."""
+        tracked = self._get_tracked_apps()
+        app_usage = self._app_usage_today.get(entity_id, {})
+        return sum(mins for app, mins in app_usage.items() if app in tracked)
+
     def start_tracking_playback(self, entity_id: str) -> None:
         """Mark that a device started playing (for usage calculation)."""
-        self._play_start[entity_id] = datetime.now()
+        self._play_start[entity_id] = dt_util.now()
 
     def stop_tracking_playback(self, entity_id: str, app_name: str = "") -> None:
         """Mark that a device stopped playing, accumulate usage."""
@@ -286,7 +309,7 @@ class ParentalControlsCoordinator:
         if start is None:
             return
 
-        elapsed = (datetime.now() - start).total_seconds() / 60.0
+        elapsed = (dt_util.now() - start).total_seconds() / 60.0
         self._usage_today[entity_id] = self._usage_today.get(entity_id, 0.0) + elapsed
 
         if app_name:
@@ -322,7 +345,7 @@ class ParentalControlsCoordinator:
         end_str = self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END)
         start = _parse_time(start_str)
         end = _parse_time(end_str)
-        now = datetime.now().time()
+        now = dt_util.now().time()
 
         if start <= end:
             return start <= now <= end
@@ -348,12 +371,12 @@ class ParentalControlsCoordinator:
 
     def get_cached_result(self, title: str) -> str | None:
         """Get cached OpenAI result for a title."""
-        key = _cache_key(title)
+        key = cache_key(title)
         return self._openai_cache.get(key)
 
     def set_cached_result(self, title: str, result: str) -> None:
         """Cache an OpenAI result."""
-        key = _cache_key(title)
+        key = cache_key(title)
         # Evict oldest entries if cache is full
         if len(self._openai_cache) >= OPENAI_CACHE_MAX_ENTRIES:
             # Remove first 20% of entries
@@ -379,24 +402,17 @@ class ParentalControlsCoordinator:
         """Add an app to the blocklist at runtime."""
         current = self._get_option(CONF_BLOCKED_APPS, DEFAULT_BLOCKED_APPS)
         apps = [a.strip() for a in current.split(",") if a.strip()]
-        if app_name not in apps:
+        existing_lower = {a.lower() for a in apps}
+        if app_name.lower() not in existing_lower:
             apps.append(app_name)
-            new_options = dict(self.config_entry.options)
-            new_options[CONF_BLOCKED_APPS] = ",".join(apps)
-            self.hass.config_entries.async_update_entry(
-                self.config_entry, options=new_options
-            )
+            self.set_runtime_setting(CONF_BLOCKED_APPS, ",".join(apps))
 
     def remove_blocked_app(self, app_name: str) -> None:
         """Remove an app from the blocklist at runtime."""
         current = self._get_option(CONF_BLOCKED_APPS, DEFAULT_BLOCKED_APPS)
         apps = [a.strip() for a in current.split(",") if a.strip()]
         apps = [a for a in apps if a.lower() != app_name.lower()]
-        new_options = dict(self.config_entry.options)
-        new_options[CONF_BLOCKED_APPS] = ",".join(apps)
-        self.hass.config_entries.async_update_entry(
-            self.config_entry, options=new_options
-        )
+        self.set_runtime_setting(CONF_BLOCKED_APPS, ",".join(apps))
 
     # --- Entity Update Notification ---
 
@@ -463,7 +479,7 @@ class ParentalControlsCoordinator:
         if self.is_device_locked(entity_id):
             last_block = self._last_block_time.get(entity_id)
             if last_block:
-                elapsed = (datetime.now() - last_block).total_seconds()
+                elapsed = (dt_util.now() - last_block).total_seconds()
                 if elapsed < LOCKOUT_COOLDOWN_SECONDS:
                     # Fast-path block without full pipeline
                     await self._block_media(
@@ -494,13 +510,14 @@ class ParentalControlsCoordinator:
             content_rating_max=self._get_option(CONF_CONTENT_RATING_MAX, DEFAULT_CONTENT_RATING),
             music_rating_max=self._get_option(CONF_MUSIC_RATING_MAX, DEFAULT_MUSIC_RATING),
             filter_strictness=self._get_option(CONF_FILTER_STRICTNESS, DEFAULT_FILTER_STRICTNESS),
-            youtube_daily_limit=self._get_option(CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT),
+            tracked_apps=self._get_tracked_apps(),
+            tracked_apps_daily_limit=self._get_option(CONF_TRACKED_APPS_DAILY_LIMIT, DEFAULT_TRACKED_APPS_DAILY_LIMIT),
             media_usage_daily_limit=self._get_option(CONF_MEDIA_USAGE_DAILY_LIMIT, DEFAULT_MEDIA_USAGE_DAILY_LIMIT),
             media_usage_start=self._get_option(CONF_MEDIA_USAGE_START, DEFAULT_MEDIA_USAGE_START),
             media_usage_end=self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END),
             openai_enabled=self._get_option(CONF_OPENAI_ENABLED, DEFAULT_OPENAI_ENABLED),
             is_device_locked=self.is_device_locked(entity_id),
-            youtube_usage_today=self.get_app_usage_today(entity_id, "youtube"),
+            tracked_apps_usage_today=self.get_tracked_apps_usage_today(entity_id),
             total_usage_today=self.get_usage_today(entity_id),
             cached_results=self._openai_cache,
         )
@@ -511,7 +528,7 @@ class ParentalControlsCoordinator:
         self, entity_id: str, media: MediaInfo, config: FilterConfig
     ) -> None:
         """Run the full filter pipeline and take action."""
-        current_time = datetime.now().time()
+        current_time = dt_util.now().time()
         result = run_local_filters(media, config, current_time)
 
         # None means OpenAI analysis needed
@@ -598,11 +615,11 @@ class ParentalControlsCoordinator:
 
     async def _block_media(self, entity_id: str, result: FilterResult) -> None:
         """Execute the blocking sequence on a media player."""
-        self._last_block_time[entity_id] = datetime.now()
-        friendly_name = self.hass.states.get(entity_id)
+        self._last_block_time[entity_id] = dt_util.now()
+        state_obj = self.hass.states.get(entity_id)
         friendly = (
-            friendly_name.attributes.get("friendly_name", entity_id)
-            if friendly_name
+            state_obj.attributes.get("friendly_name", entity_id)
+            if state_obj
             else entity_id
         )
 
@@ -722,7 +739,13 @@ class ParentalControlsCoordinator:
         except Exception:
             _LOGGER.warning("Persistent notification failed", exc_info=True)
 
-        # Step 5: Fire custom event
+        # Step 5: Push notification to companion app (only on lockout)
+        if locked:
+            await self._send_push_notifications(
+                entity_id, friendly, result.reason, strikes, max_strikes,
+            )
+
+        # Step 6: Fire custom event
         self.hass.bus.async_fire(
             f"{DOMAIN}_blocked",
             {
@@ -737,3 +760,121 @@ class ParentalControlsCoordinator:
         )
 
         self._notify_entity_update(entity_id)
+
+    # ------------------------------------------------------------------
+    # Companion app push notifications
+    # ------------------------------------------------------------------
+
+    def _resolve_push_services(self) -> list[str]:
+        """Return the list of mobile app notify service names."""
+        push_services = self._get_option(
+            CONF_PUSH_NOTIFY_SERVICES, DEFAULT_PUSH_NOTIFY_SERVICES
+        )
+        # Handle comma-separated string from text-selector fallback
+        if isinstance(push_services, str):
+            return [s.strip() for s in push_services.split(",") if s.strip()]
+        return list(push_services) if push_services else []
+
+    async def _send_push_notifications(
+        self,
+        entity_id: str,
+        friendly_name: str,
+        reason: str,
+        strikes: int,
+        max_strikes: int,
+    ) -> None:
+        """Send push notifications to configured companion app devices on lockout."""
+        push_enabled = self._get_option(
+            CONF_PUSH_NOTIFY_ENABLED, DEFAULT_PUSH_NOTIFY_ENABLED
+        )
+        if not push_enabled:
+            return
+
+        push_services = self._resolve_push_services()
+        if not push_services:
+            return
+
+        # Build notification content
+        if max_strikes == 0:
+            strikes_text = f"Strikes: {strikes} (no limit)"
+        else:
+            strikes_text = f"Strikes: {strikes}/{max_strikes}"
+
+        message = (
+            f"{friendly_name}: {reason}\n"
+            f"{strikes_text}\n"
+            "Device is LOCKED."
+        )
+
+        notification_data: dict[str, Any] = {
+            "tag": f"parental_controls_{entity_id}",
+            "importance": "high",
+            "push": {"sound": "default"},
+            "actions": [
+                {
+                    "action": f"{ACTION_UNLOCK_DEVICE}_{entity_id}",
+                    "title": "Unlock Device",
+                }
+            ],
+        }
+
+        for service_name in push_services:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service_name,
+                    {
+                        "title": "Parental Controls Alert",
+                        "message": message,
+                        "data": notification_data,
+                    },
+                    blocking=False,
+                )
+            except Exception:
+                _LOGGER.warning(
+                    "Push notification failed for notify.%s",
+                    service_name,
+                    exc_info=True,
+                )
+
+    async def handle_push_action(self, action: str) -> None:
+        """Handle an actionable notification response from the companion app.
+
+        Expected action format: ``PARENTAL_CONTROLS_UNLOCK_<entity_id>``
+        """
+        prefix = f"{ACTION_UNLOCK_DEVICE}_"
+        if not action.startswith(prefix):
+            return
+
+        entity_id = action[len(prefix):]
+        if entity_id not in self.monitored_players:
+            _LOGGER.warning(
+                "Received unlock action for unmonitored device: %s", entity_id
+            )
+            return
+
+        self.reset_strikes(entity_id)
+        _LOGGER.info(
+            "Device %s unlocked via companion app notification", entity_id
+        )
+
+        # Replace the alert notification with a confirmation
+        push_services = self._resolve_push_services()
+        for service_name in push_services:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service_name,
+                    {
+                        "title": "Parental Controls",
+                        "message": "Device unlocked successfully.",
+                        "data": {"tag": f"parental_controls_{entity_id}"},
+                    },
+                    blocking=False,
+                )
+            except Exception:
+                _LOGGER.warning(
+                    "Confirmation notification failed for notify.%s",
+                    service_name,
+                    exc_info=True,
+                )

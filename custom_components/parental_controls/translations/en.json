@@ -24,7 +24,8 @@
         "title": "Time & Strike Limits",
         "description": "Set daily usage limits and the strike threshold for device lockout. Set any value to 0 for unlimited.",
         "data": {
-          "youtube_daily_limit": "YouTube daily limit in minutes (0 = unlimited)",
+          "tracked_apps": "Apps to track for usage limit (comma-separated)",
+          "tracked_apps_daily_limit": "Tracked apps daily limit in minutes (0 = unlimited)",
           "media_usage_daily_limit": "Total media usage daily limit in minutes (0 = unlimited)",
           "media_usage_start": "Media usage allowed from",
           "media_usage_end": "Media usage allowed until",
@@ -34,10 +35,12 @@
       },
       "blocking": {
         "title": "Blocking Behavior",
-        "description": "Configure how blocked content is handled. Select a TTS entity from the list or type a custom entity ID (e.g., tts.piper).",
+        "description": "Configure how blocked content is handled. Optionally enable push notifications to receive alerts on your phone when a device is locked.",
         "data": {
           "tts_enabled": "Enable TTS announcements",
-          "tts_service": "TTS entity"
+          "tts_service": "TTS entity",
+          "push_notify_enabled": "Enable companion app notifications on lockout",
+          "push_notify_services": "Mobile devices to notify"
         }
       },
       "openai": {
@@ -72,7 +75,8 @@
           "content_rating_max": "Maximum content rating",
           "music_rating_max": "Music rating policy",
           "filter_strictness": "Title filter strictness",
-          "youtube_daily_limit": "YouTube daily limit in minutes (0 = unlimited)",
+          "tracked_apps": "Apps to track for usage limit (comma-separated)",
+          "tracked_apps_daily_limit": "Tracked apps daily limit in minutes (0 = unlimited)",
           "media_usage_daily_limit": "Total media usage daily limit in minutes (0 = unlimited)",
           "media_usage_start": "Media usage allowed from",
           "media_usage_end": "Media usage allowed until",
@@ -80,6 +84,8 @@
           "media_usage_track_only_allowed_hours": "Only track usage during allowed hours",
           "tts_enabled": "Enable TTS announcements",
           "tts_service": "TTS entity",
+          "push_notify_enabled": "Enable companion app notifications on lockout",
+          "push_notify_services": "Mobile devices to notify",
           "openai_enabled": "Enable OpenAI content analysis",
           "openai_agent_id": "Conversation agent"
         }

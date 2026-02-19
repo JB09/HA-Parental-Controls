@@ -9,16 +9,12 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_MONITORED_PLAYERS, DOMAIN
+from .const import CONF_MONITORED_PLAYERS, DOMAIN, device_slug
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _device_slug(entity_id: str) -> str:
-    """Convert media_player.living_room_tv to living_room_tv."""
-    return entity_id.replace("media_player.", "").replace(".", "_")
 
 
 async def async_setup_entry(
@@ -33,11 +29,24 @@ async def async_setup_entry(
         config_entry.options.get(CONF_MONITORED_PLAYERS, []),
     )
 
+    # Migrate old YouTube usage sensor unique_ids to tracked apps
+    ent_reg = er.async_get(hass)
+    for player_id in players:
+        slug = device_slug(player_id)
+        old_uid = f"{config_entry.entry_id}_{slug}_youtube_usage_today"
+        new_uid = f"{config_entry.entry_id}_{slug}_tracked_apps_usage_today"
+        existing = ent_reg.async_get_entity_id("sensor", DOMAIN, old_uid)
+        if existing:
+            ent_reg.async_update_entity(existing, new_unique_id=new_uid)
+            _LOGGER.info(
+                "Migrated sensor unique_id from %s to %s", old_uid, new_uid
+            )
+
     entities: list[SensorEntity] = []
     for player_id in players:
         entities.append(StrikeSensor(coordinator, config_entry, player_id))
         entities.append(UsageTodaySensor(coordinator, config_entry, player_id))
-        entities.append(YouTubeUsageSensor(coordinator, config_entry, player_id))
+        entities.append(TrackedAppsUsageSensor(coordinator, config_entry, player_id))
 
     entities.append(LastBlockedSensor(coordinator, config_entry))
 
@@ -95,9 +104,15 @@ class StrikeSensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_strikes"
         self._attr_name = f"{slug} strikes"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Restore strike count on startup."""
@@ -144,9 +159,15 @@ class UsageTodaySensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_usage_today"
         self._attr_name = f"{slug} usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Restore usage on startup."""
@@ -176,16 +197,16 @@ class UsageTodaySensor(ParentalControlsSensorBase):
         """Return per-app breakdown."""
         return {
             "monitored_player": self._player_entity_id,
-            "app_usage": self._coordinator._app_usage_today.get(
-                self._player_entity_id, {}
+            "app_usage": self._coordinator.get_all_app_usage_today(
+                self._player_entity_id
             ),
         }
 
 
-class YouTubeUsageSensor(ParentalControlsSensorBase):
-    """Sensor showing YouTube usage today in minutes for a device."""
+class TrackedAppsUsageSensor(ParentalControlsSensorBase):
+    """Sensor showing aggregate tracked apps usage today in minutes for a device."""
 
-    _attr_icon = "mdi:youtube"
+    _attr_icon = "mdi:apps"
     _attr_native_unit_of_measurement = "min"
 
     def __init__(
@@ -197,17 +218,41 @@ class YouTubeUsageSensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
-        self._attr_unique_id = f"{config_entry.entry_id}_{slug}_youtube_usage_today"
-        self._attr_name = f"{slug} YouTube usage today"
+        slug = device_slug(player_entity_id)
+        self._attr_unique_id = f"{config_entry.entry_id}_{slug}_tracked_apps_usage_today"
+        self._attr_name = f"{slug} tracked apps usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:
-        """Return YouTube usage today in minutes."""
+        """Return aggregate tracked apps usage today in minutes."""
         return round(
-            self._coordinator.get_app_usage_today(self._player_entity_id, "youtube"),
+            self._coordinator.get_tracked_apps_usage_today(self._player_entity_id),
             1,
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return per-app breakdown for tracked apps."""
+        tracked = self._coordinator._get_tracked_apps()
+        all_usage = self._coordinator.get_all_app_usage_today(
+            self._player_entity_id
+        )
+        tracked_breakdown = {
+            app: round(minutes, 1)
+            for app, minutes in all_usage.items()
+            if app in tracked
+        }
+        return {
+            "monitored_player": self._player_entity_id,
+            "tracked_apps": tracked,
+            "app_usage": tracked_breakdown,
+        }
 
 
 class LastBlockedSensor(ParentalControlsSensorBase):

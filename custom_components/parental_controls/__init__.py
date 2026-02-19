@@ -12,14 +12,14 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import Event, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_change,
 )
 
-from .const import CONF_MONITORED_PLAYERS, DOMAIN, PLATFORMS
+from .const import CONF_MONITORED_PLAYERS, DOMAIN
 from .coordinator import ParentalControlsCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +53,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         entry.async_on_unload(cancel_state_listener)
 
+    # Register listener for companion app actionable notification responses
+    async def _handle_mobile_action(event: Event) -> None:
+        """Handle mobile_app_notification_action events."""
+        action = event.data.get("action", "")
+        if action.startswith("PARENTAL_CONTROLS_"):
+            await coordinator.handle_push_action(action)
+
+    cancel_mobile_action = hass.bus.async_listen(
+        "mobile_app_notification_action",
+        _handle_mobile_action,
+    )
+    entry.async_on_unload(cancel_mobile_action)
+
     # Register midnight reset for daily usage counters
     cancel_midnight = async_track_time_change(
         hass,
@@ -66,8 +79,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward setup to all platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORM_LIST)
 
-    # Register services
-    _register_services(hass, coordinator)
+    # Register services (and schedule unregistration on unload)
+    _register_services(hass, entry, coordinator)
 
     # Listen for options updates from the options flow only.
     # Number/select entities use runtime_settings (no reload needed).
@@ -79,6 +92,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         len(players),
         ", ".join(players),
     )
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to a new version."""
+    if entry.version > 2:
+        return False
+
+    if entry.version == 1:
+        _LOGGER.info("Migrating config entry from version 1 to 2")
+        new_data = dict(entry.data)
+        new_options = dict(entry.options)
+
+        # Migrate youtube_daily_limit -> tracked_apps_daily_limit
+        if "youtube_daily_limit" in new_data:
+            new_data["tracked_apps_daily_limit"] = new_data.pop(
+                "youtube_daily_limit"
+            )
+        new_data.setdefault("tracked_apps", "YouTube")
+
+        if "youtube_daily_limit" in new_options:
+            new_options["tracked_apps_daily_limit"] = new_options.pop(
+                "youtube_daily_limit"
+            )
+        if "tracked_apps_daily_limit" in new_options:
+            new_options.setdefault("tracked_apps", "YouTube")
+
+        hass.config_entries.async_update_entry(
+            entry, data=new_data, options=new_options, version=2
+        )
+        _LOGGER.info("Migration to version 2 successful")
+
     return True
 
 
@@ -109,9 +154,19 @@ def _create_midnight_callback(coordinator: ParentalControlsCoordinator):
 
 
 def _register_services(
-    hass: HomeAssistant, coordinator: ParentalControlsCoordinator
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: ParentalControlsCoordinator,
 ) -> None:
     """Register custom services for parental controls."""
+
+    service_names: list[str] = []
+
+    def _register(name: str, handler, schema) -> None:
+        """Register a service and track its name for cleanup."""
+        if not hass.services.has_service(DOMAIN, name):
+            hass.services.async_register(DOMAIN, name, handler, schema=schema)
+            service_names.append(name)
 
     async def handle_unlock_device(call: ServiceCall) -> None:
         """Reset strikes and unlock a specific device."""
@@ -141,52 +196,6 @@ def _register_services(
         coordinator.remove_blocked_app(app_name)
         _LOGGER.info("Service call: removed '%s' from blocked apps", app_name)
 
-    if not hass.services.has_service(DOMAIN, "unlock_device"):
-        hass.services.async_register(
-            DOMAIN,
-            "unlock_device",
-            handle_unlock_device,
-            schema=vol.Schema(
-                {vol.Required("entity_id"): cv.entity_id}
-            ),
-        )
-
-    if not hass.services.has_service(DOMAIN, "unlock_all"):
-        hass.services.async_register(
-            DOMAIN,
-            "unlock_all",
-            handle_unlock_all,
-            schema=vol.Schema({}),
-        )
-
-    if not hass.services.has_service(DOMAIN, "clear_cache"):
-        hass.services.async_register(
-            DOMAIN,
-            "clear_cache",
-            handle_clear_cache,
-            schema=vol.Schema({}),
-        )
-
-    if not hass.services.has_service(DOMAIN, "add_blocked_app"):
-        hass.services.async_register(
-            DOMAIN,
-            "add_blocked_app",
-            handle_add_blocked_app,
-            schema=vol.Schema(
-                {vol.Required("app_name"): cv.string}
-            ),
-        )
-
-    if not hass.services.has_service(DOMAIN, "remove_blocked_app"):
-        hass.services.async_register(
-            DOMAIN,
-            "remove_blocked_app",
-            handle_remove_blocked_app,
-            schema=vol.Schema(
-                {vol.Required("app_name"): cv.string}
-            ),
-        )
-
     async def handle_set_parent_mode(call: ServiceCall) -> None:
         """Enable or disable parent mode for a media player."""
         entity_id = call.data["entity_id"]
@@ -198,15 +207,36 @@ def _register_services(
             entity_id,
         )
 
-    if not hass.services.has_service(DOMAIN, "set_parent_mode"):
-        hass.services.async_register(
-            DOMAIN,
-            "set_parent_mode",
-            handle_set_parent_mode,
-            schema=vol.Schema(
-                {
-                    vol.Required("entity_id"): cv.entity_id,
-                    vol.Required("enabled"): cv.boolean,
-                }
-            ),
-        )
+    _register(
+        "unlock_device",
+        handle_unlock_device,
+        vol.Schema({vol.Required("entity_id"): cv.entity_id}),
+    )
+    _register("unlock_all", handle_unlock_all, vol.Schema({}))
+    _register("clear_cache", handle_clear_cache, vol.Schema({}))
+    _register(
+        "add_blocked_app",
+        handle_add_blocked_app,
+        vol.Schema({vol.Required("app_name"): cv.string}),
+    )
+    _register(
+        "remove_blocked_app",
+        handle_remove_blocked_app,
+        vol.Schema({vol.Required("app_name"): cv.string}),
+    )
+    _register(
+        "set_parent_mode",
+        handle_set_parent_mode,
+        vol.Schema(
+            {
+                vol.Required("entity_id"): cv.entity_id,
+                vol.Required("enabled"): cv.boolean,
+            }
+        ),
+    )
+
+    def _unregister_services() -> None:
+        for name in service_names:
+            hass.services.async_remove(DOMAIN, name)
+
+    entry.async_on_unload(_unregister_services)
