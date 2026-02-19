@@ -157,8 +157,14 @@ class ParentalControlsCoordinator:
         return self._get_option(CONF_MAX_STRIKES, DEFAULT_MAX_STRIKES)
 
     def is_device_locked(self, entity_id: str) -> bool:
-        """Check if a device is locked due to max strikes."""
-        return self.get_strikes(entity_id) >= self.get_max_strikes()
+        """Check if a device is locked due to max strikes.
+
+        Returns False when max_strikes is 0 (unlimited).
+        """
+        max_strikes = self.get_max_strikes()
+        if max_strikes == 0:
+            return False
+        return self.get_strikes(entity_id) >= max_strikes
 
     def record_strike(self, entity_id: str) -> bool:
         """Record a strike. Returns True if device is now locked."""
@@ -601,9 +607,14 @@ class ParentalControlsCoordinator:
         max_strikes = self.get_max_strikes()
         locked = self.is_device_locked(entity_id)
 
+        if max_strikes == 0:
+            strikes_display = f"Strikes: {strikes} (no limit)"
+        else:
+            strikes_display = f"Strikes: {strikes}/{max_strikes}"
+
         notification_message = (
             f"**{friendly}**: {result.reason}\n"
-            f"Strikes: {strikes}/{max_strikes}"
+            f"{strikes_display}"
         )
         if locked:
             notification_message += (

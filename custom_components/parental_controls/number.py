@@ -130,7 +130,7 @@ class MaxStrikesNumber(ParentalControlsNumberBase):
     """Number entity for maximum strikes before lockout."""
 
     _attr_icon = "mdi:alert-octagon"
-    _attr_native_min_value = 1
+    _attr_native_min_value = 0
     _attr_native_max_value = 10
     _attr_native_step = 1
 

@@ -26,7 +26,7 @@ CONF_OPENAI_AGENT_ID = "openai_agent_id"
 CONF_FILTER_STRICTNESS = "filter_strictness"
 
 # Defaults
-DEFAULT_BLOCKED_APPS = "TikTok,Twitch,Reddit"
+DEFAULT_BLOCKED_APPS = "TikTok,Twitch,YouTube"
 DEFAULT_ALLOWED_APPS = "Disney+,PBS Kids,Khan Academy"
 DEFAULT_BLOCKED_KEYWORDS = "explicit,nsfw,mature,18+,uncensored"
 DEFAULT_CONTENT_RATING = "PG"
