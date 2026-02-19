@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="custom_components/parental_controls/icon.png" alt="Parental Controls icon" width="128">
+</p>
+
 # Home Assistant Parental Controls
 
 A HACS-installable custom integration that monitors media playback across your Home Assistant devices and enforces content and time restrictions.
