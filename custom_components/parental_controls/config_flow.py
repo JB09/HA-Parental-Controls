@@ -259,15 +259,11 @@ class ParentalControlsConfigFlow(
         config_entry: config_entries.ConfigEntry,
     ) -> ParentalControlsOptionsFlow:
         """Return the options flow handler."""
-        return ParentalControlsOptionsFlow(config_entry)
+        return ParentalControlsOptionsFlow()
 
 
 class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for Parental Controls."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     def _get_current(self, key: str, default: Any) -> Any:
         """Get current value from options or data."""
