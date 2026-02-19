@@ -34,7 +34,8 @@ from .const import (
     CONF_PUSH_NOTIFY_SERVICES,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
-    CONF_YOUTUBE_DAILY_LIMIT,
+    CONF_TRACKED_APPS,
+    CONF_TRACKED_APPS_DAILY_LIMIT,
     DEFAULT_ALLOWED_APPS,
     DEFAULT_BLOCKED_APPS,
     DEFAULT_BLOCKED_KEYWORDS,
@@ -52,7 +53,8 @@ from .const import (
     DEFAULT_PUSH_NOTIFY_SERVICES,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
-    DEFAULT_YOUTUBE_DAILY_LIMIT,
+    DEFAULT_TRACKED_APPS,
+    DEFAULT_TRACKED_APPS_DAILY_LIMIT,
     ACTION_UNLOCK_DEVICE,
     DOMAIN,
     LOCKOUT_COOLDOWN_SECONDS,
@@ -155,6 +157,11 @@ class ParentalControlsCoordinator:
         """Get normalized blocked keywords list."""
         raw = self._get_option(CONF_BLOCKED_KEYWORDS, DEFAULT_BLOCKED_KEYWORDS)
         return [k.strip().lower() for k in raw.split(",") if k.strip()]
+
+    def _get_tracked_apps(self) -> list[str]:
+        """Get normalized tracked apps list."""
+        raw = self._get_option(CONF_TRACKED_APPS, DEFAULT_TRACKED_APPS)
+        return [a.strip().lower() for a in raw.split(",") if a.strip()]
 
     # --- Strike Management ---
 
@@ -285,6 +292,12 @@ class ParentalControlsCoordinator:
     def get_all_app_usage_today(self, entity_id: str) -> dict[str, float]:
         """Get full per-app usage breakdown for a device."""
         return dict(self._app_usage_today.get(entity_id, {}))
+
+    def get_tracked_apps_usage_today(self, entity_id: str) -> float:
+        """Get aggregate usage today across all tracked apps, in minutes."""
+        tracked = self._get_tracked_apps()
+        app_usage = self._app_usage_today.get(entity_id, {})
+        return sum(mins for app, mins in app_usage.items() if app in tracked)
 
     def start_tracking_playback(self, entity_id: str) -> None:
         """Mark that a device started playing (for usage calculation)."""
@@ -497,13 +510,14 @@ class ParentalControlsCoordinator:
             content_rating_max=self._get_option(CONF_CONTENT_RATING_MAX, DEFAULT_CONTENT_RATING),
             music_rating_max=self._get_option(CONF_MUSIC_RATING_MAX, DEFAULT_MUSIC_RATING),
             filter_strictness=self._get_option(CONF_FILTER_STRICTNESS, DEFAULT_FILTER_STRICTNESS),
-            youtube_daily_limit=self._get_option(CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT),
+            tracked_apps=self._get_tracked_apps(),
+            tracked_apps_daily_limit=self._get_option(CONF_TRACKED_APPS_DAILY_LIMIT, DEFAULT_TRACKED_APPS_DAILY_LIMIT),
             media_usage_daily_limit=self._get_option(CONF_MEDIA_USAGE_DAILY_LIMIT, DEFAULT_MEDIA_USAGE_DAILY_LIMIT),
             media_usage_start=self._get_option(CONF_MEDIA_USAGE_START, DEFAULT_MEDIA_USAGE_START),
             media_usage_end=self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END),
             openai_enabled=self._get_option(CONF_OPENAI_ENABLED, DEFAULT_OPENAI_ENABLED),
             is_device_locked=self.is_device_locked(entity_id),
-            youtube_usage_today=self.get_app_usage_today(entity_id, "youtube"),
+            tracked_apps_usage_today=self.get_tracked_apps_usage_today(entity_id),
             total_usage_today=self.get_usage_today(entity_id),
             cached_results=self._openai_cache,
         )

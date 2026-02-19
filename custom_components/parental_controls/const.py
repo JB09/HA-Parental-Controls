@@ -17,7 +17,8 @@ CONF_ALLOWED_APPS = "allowed_apps"
 CONF_BLOCKED_KEYWORDS = "blocked_keywords"
 CONF_CONTENT_RATING_MAX = "content_rating_max"
 CONF_MUSIC_RATING_MAX = "music_rating_max"
-CONF_YOUTUBE_DAILY_LIMIT = "youtube_daily_limit"
+CONF_TRACKED_APPS = "tracked_apps"
+CONF_TRACKED_APPS_DAILY_LIMIT = "tracked_apps_daily_limit"
 CONF_MEDIA_USAGE_DAILY_LIMIT = "media_usage_daily_limit"
 CONF_MEDIA_USAGE_START = "media_usage_start"
 CONF_MEDIA_USAGE_END = "media_usage_end"
@@ -37,7 +38,8 @@ DEFAULT_ALLOWED_APPS = "Disney+,PBS Kids,Khan Academy"
 DEFAULT_BLOCKED_KEYWORDS = "explicit,nsfw,mature,18+,uncensored"
 DEFAULT_CONTENT_RATING = "PG"
 DEFAULT_MUSIC_RATING = "Clean Only"
-DEFAULT_YOUTUBE_DAILY_LIMIT = 120  # minutes
+DEFAULT_TRACKED_APPS = "YouTube"
+DEFAULT_TRACKED_APPS_DAILY_LIMIT = 120  # minutes
 DEFAULT_MEDIA_USAGE_DAILY_LIMIT = 240  # minutes
 DEFAULT_MEDIA_USAGE_START = "08:00"
 DEFAULT_MEDIA_USAGE_END = "20:00"
@@ -64,6 +66,10 @@ OPENAI_CACHE_MAX_ENTRIES = 200
 
 # Actionable notification action IDs
 ACTION_UNLOCK_DEVICE = "PARENTAL_CONTROLS_UNLOCK"
+
+# DEPRECATED: Kept for config migration from v1 -> v2
+CONF_YOUTUBE_DAILY_LIMIT = "youtube_daily_limit"
+DEFAULT_YOUTUBE_DAILY_LIMIT = 120  # minutes
 
 # Title pattern word lists organized by category and strictness
 # Word-boundary matching (\b) is applied at filter time to avoid false positives.

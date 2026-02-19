@@ -8,15 +8,16 @@ from typing import Any
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_MAX_STRIKES,
     CONF_MEDIA_USAGE_DAILY_LIMIT,
-    CONF_YOUTUBE_DAILY_LIMIT,
+    CONF_TRACKED_APPS_DAILY_LIMIT,
     DEFAULT_MAX_STRIKES,
     DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
-    DEFAULT_YOUTUBE_DAILY_LIMIT,
+    DEFAULT_TRACKED_APPS_DAILY_LIMIT,
     DOMAIN,
 )
 
@@ -30,9 +31,19 @@ async def async_setup_entry(
 ) -> None:
     """Set up number entities from a config entry."""
     coordinator = config_entry.runtime_data
+
+    # Migrate old YouTube limit number unique_id
+    ent_reg = er.async_get(hass)
+    old_uid = f"{config_entry.entry_id}_youtube_limit"
+    new_uid = f"{config_entry.entry_id}_tracked_apps_limit"
+    existing = ent_reg.async_get_entity_id("number", DOMAIN, old_uid)
+    if existing:
+        ent_reg.async_update_entity(existing, new_unique_id=new_uid)
+        _LOGGER.info("Migrated number unique_id from %s to %s", old_uid, new_uid)
+
     async_add_entities(
         [
-            YouTubeLimitNumber(coordinator, config_entry),
+            TrackedAppsLimitNumber(coordinator, config_entry),
             MediaUsageLimitNumber(coordinator, config_entry),
             MaxStrikesNumber(coordinator, config_entry),
         ]
@@ -72,10 +83,10 @@ class ParentalControlsNumberBase(NumberEntity):
         self.async_write_ha_state()
 
 
-class YouTubeLimitNumber(ParentalControlsNumberBase):
-    """Number entity for YouTube daily limit in minutes."""
+class TrackedAppsLimitNumber(ParentalControlsNumberBase):
+    """Number entity for tracked apps daily limit in minutes."""
 
-    _attr_icon = "mdi:youtube"
+    _attr_icon = "mdi:apps"
     _attr_native_min_value = 0
     _attr_native_max_value = 1440
     _attr_native_step = 15
@@ -84,19 +95,19 @@ class YouTubeLimitNumber(ParentalControlsNumberBase):
     def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{config_entry.entry_id}_youtube_limit"
-        self._attr_name = "YouTube daily limit"
+        self._attr_unique_id = f"{config_entry.entry_id}_tracked_apps_limit"
+        self._attr_name = "Tracked apps daily limit"
 
     @property
     def native_value(self) -> float:
-        """Return current YouTube daily limit."""
+        """Return current tracked apps daily limit."""
         return self._coordinator._get_option(
-            CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT
+            CONF_TRACKED_APPS_DAILY_LIMIT, DEFAULT_TRACKED_APPS_DAILY_LIMIT
         )
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set a new YouTube daily limit."""
-        self._coordinator.set_runtime_setting(CONF_YOUTUBE_DAILY_LIMIT, value)
+        """Set a new tracked apps daily limit."""
+        self._coordinator.set_runtime_setting(CONF_TRACKED_APPS_DAILY_LIMIT, value)
 
 
 class MediaUsageLimitNumber(ParentalControlsNumberBase):

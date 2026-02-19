@@ -29,7 +29,8 @@ from .const import (
     CONF_PUSH_NOTIFY_SERVICES,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
-    CONF_YOUTUBE_DAILY_LIMIT,
+    CONF_TRACKED_APPS,
+    CONF_TRACKED_APPS_DAILY_LIMIT,
     CONTENT_RATINGS,
     DEFAULT_ALLOWED_APPS,
     DEFAULT_BLOCKED_APPS,
@@ -48,7 +49,8 @@ from .const import (
     DEFAULT_PUSH_NOTIFY_SERVICES,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
-    DEFAULT_YOUTUBE_DAILY_LIMIT,
+    DEFAULT_TRACKED_APPS,
+    DEFAULT_TRACKED_APPS_DAILY_LIMIT,
     DOMAIN,
     FILTER_STRICTNESS_OPTIONS,
     MUSIC_RATINGS,
@@ -175,7 +177,7 @@ class ParentalControlsConfigFlow(
 ):
     """Handle a config flow for Parental Controls."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -271,8 +273,13 @@ class ParentalControlsConfigFlow(
             data_schema=vol.Schema(
                 {
                     vol.Optional(
-                        CONF_YOUTUBE_DAILY_LIMIT,
-                        default=DEFAULT_YOUTUBE_DAILY_LIMIT,
+                        CONF_TRACKED_APPS, default=DEFAULT_TRACKED_APPS
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(multiline=False)
+                    ),
+                    vol.Optional(
+                        CONF_TRACKED_APPS_DAILY_LIMIT,
+                        default=DEFAULT_TRACKED_APPS_DAILY_LIMIT,
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0,
@@ -479,8 +486,14 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
                     vol.Optional(
-                        CONF_YOUTUBE_DAILY_LIMIT,
-                        default=self._get_current(CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT),
+                        CONF_TRACKED_APPS,
+                        default=self._get_current(CONF_TRACKED_APPS, DEFAULT_TRACKED_APPS),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(multiline=False)
+                    ),
+                    vol.Optional(
+                        CONF_TRACKED_APPS_DAILY_LIMIT,
+                        default=self._get_current(CONF_TRACKED_APPS_DAILY_LIMIT, DEFAULT_TRACKED_APPS_DAILY_LIMIT),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0,

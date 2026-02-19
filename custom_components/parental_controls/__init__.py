@@ -97,9 +97,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to a new version."""
-    if entry.version > 1:
-        # Future migration: downgrade not supported
+    if entry.version > 2:
         return False
+
+    if entry.version == 1:
+        _LOGGER.info("Migrating config entry from version 1 to 2")
+        new_data = dict(entry.data)
+        new_options = dict(entry.options)
+
+        # Migrate youtube_daily_limit -> tracked_apps_daily_limit
+        if "youtube_daily_limit" in new_data:
+            new_data["tracked_apps_daily_limit"] = new_data.pop(
+                "youtube_daily_limit"
+            )
+        new_data.setdefault("tracked_apps", "YouTube")
+
+        if "youtube_daily_limit" in new_options:
+            new_options["tracked_apps_daily_limit"] = new_options.pop(
+                "youtube_daily_limit"
+            )
+        if "tracked_apps_daily_limit" in new_options:
+            new_options.setdefault("tracked_apps", "YouTube")
+
+        hass.config_entries.async_update_entry(
+            entry, data=new_data, options=new_options, version=2
+        )
+        _LOGGER.info("Migration to version 2 successful")
+
     return True
 
 

@@ -44,13 +44,14 @@ class FilterConfig:
     content_rating_max: str
     music_rating_max: str
     filter_strictness: str
-    youtube_daily_limit: float  # minutes
+    tracked_apps: list[str]  # lowercase app names in the tracked basket
+    tracked_apps_daily_limit: float  # minutes (0 = unlimited)
     media_usage_daily_limit: float  # minutes
     media_usage_start: str  # "HH:MM"
     media_usage_end: str  # "HH:MM"
     openai_enabled: bool
     is_device_locked: bool
-    youtube_usage_today: float  # minutes
+    tracked_apps_usage_today: float  # aggregate minutes across tracked apps
     total_usage_today: float  # minutes
     cached_results: dict[str, str]
 
@@ -248,15 +249,15 @@ def _check_time_limits(media: MediaInfo, config: FilterConfig) -> FilterResult |
     """Layer 8: Check daily usage time limits."""
     app_lower = media.app_name.lower()
 
-    # YouTube-specific limit (0 = unlimited)
+    # Tracked apps basket limit (0 = unlimited)
     if (
-        config.youtube_daily_limit > 0
-        and "youtube" in app_lower
-        and config.youtube_usage_today >= config.youtube_daily_limit
+        config.tracked_apps_daily_limit > 0
+        and app_lower in config.tracked_apps
+        and config.tracked_apps_usage_today >= config.tracked_apps_daily_limit
     ):
         return FilterResult(
             action="block",
-            reason=f"YouTube daily time limit reached ({config.youtube_daily_limit:.0f} minutes)",
+            reason=f"Tracked apps daily limit reached ({config.tracked_apps_daily_limit:.0f} minutes)",
             layer=8,
             should_strike=False,
         )
