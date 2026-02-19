@@ -186,3 +186,27 @@ def _register_services(
                 {vol.Required("app_name"): cv.string}
             ),
         )
+
+    async def handle_set_parent_mode(call: ServiceCall) -> None:
+        """Enable or disable parent mode for a media player."""
+        entity_id = call.data["entity_id"]
+        enabled = call.data["enabled"]
+        coordinator.set_parent_mode(entity_id, enabled)
+        _LOGGER.info(
+            "Service call: parent mode %s for %s",
+            "enabled" if enabled else "disabled",
+            entity_id,
+        )
+
+    if not hass.services.has_service(DOMAIN, "set_parent_mode"):
+        hass.services.async_register(
+            DOMAIN,
+            "set_parent_mode",
+            handle_set_parent_mode,
+            schema=vol.Schema(
+                {
+                    vol.Required("entity_id"): cv.entity_id,
+                    vol.Required("enabled"): cv.boolean,
+                }
+            ),
+        )

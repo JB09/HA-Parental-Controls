@@ -12,10 +12,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CONF_MAX_STRIKES,
-    CONF_SCREEN_TIME_DAILY_LIMIT,
+    CONF_MEDIA_USAGE_DAILY_LIMIT,
     CONF_YOUTUBE_DAILY_LIMIT,
     DEFAULT_MAX_STRIKES,
-    DEFAULT_SCREEN_TIME_DAILY_LIMIT,
+    DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
     DEFAULT_YOUTUBE_DAILY_LIMIT,
     DOMAIN,
 )
@@ -33,7 +33,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             YouTubeLimitNumber(coordinator, config_entry),
-            ScreenTimeLimitNumber(coordinator, config_entry),
+            MediaUsageLimitNumber(coordinator, config_entry),
             MaxStrikesNumber(coordinator, config_entry),
         ]
     )
@@ -99,8 +99,8 @@ class YouTubeLimitNumber(ParentalControlsNumberBase):
         self._coordinator.set_runtime_setting(CONF_YOUTUBE_DAILY_LIMIT, value)
 
 
-class ScreenTimeLimitNumber(ParentalControlsNumberBase):
-    """Number entity for total screen time daily limit in minutes."""
+class MediaUsageLimitNumber(ParentalControlsNumberBase):
+    """Number entity for total media usage daily limit in minutes."""
 
     _attr_icon = "mdi:timer-sand"
     _attr_native_min_value = 0
@@ -111,19 +111,19 @@ class ScreenTimeLimitNumber(ParentalControlsNumberBase):
     def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
         """Initialize."""
         super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{config_entry.entry_id}_screen_time_limit"
-        self._attr_name = "Screen time daily limit"
+        self._attr_unique_id = f"{config_entry.entry_id}_media_usage_limit"
+        self._attr_name = "Media usage daily limit"
 
     @property
     def native_value(self) -> float:
-        """Return current screen time daily limit."""
+        """Return current media usage daily limit."""
         return self._coordinator._get_option(
-            CONF_SCREEN_TIME_DAILY_LIMIT, DEFAULT_SCREEN_TIME_DAILY_LIMIT
+            CONF_MEDIA_USAGE_DAILY_LIMIT, DEFAULT_MEDIA_USAGE_DAILY_LIMIT
         )
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set a new screen time daily limit."""
-        self._coordinator.set_runtime_setting(CONF_SCREEN_TIME_DAILY_LIMIT, value)
+        """Set a new media usage daily limit."""
+        self._coordinator.set_runtime_setting(CONF_MEDIA_USAGE_DAILY_LIMIT, value)
 
 
 class MaxStrikesNumber(ParentalControlsNumberBase):

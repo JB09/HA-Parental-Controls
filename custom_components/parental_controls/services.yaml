@@ -43,3 +43,23 @@ remove_blocked_app:
       example: "TikTok"
       selector:
         text:
+
+set_parent_mode:
+  name: Set Parent Mode
+  description: Enable or disable parent mode for a media player. When enabled, content filtering and usage tracking are both paused.
+  fields:
+    entity_id:
+      name: Media Player Entity
+      description: The media_player entity ID.
+      required: true
+      example: "media_player.apple_tv_living_room"
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+    enabled:
+      name: Enabled
+      description: True to enable parent mode, false to disable.
+      required: true
+      selector:
+        boolean:

@@ -45,9 +45,9 @@ class FilterConfig:
     music_rating_max: str
     filter_strictness: str
     youtube_daily_limit: float  # minutes
-    screen_time_daily_limit: float  # minutes
-    screen_time_start: str  # "HH:MM"
-    screen_time_end: str  # "HH:MM"
+    media_usage_daily_limit: float  # minutes
+    media_usage_start: str  # "HH:MM"
+    media_usage_end: str  # "HH:MM"
     openai_enabled: bool
     is_device_locked: bool
     youtube_usage_today: float  # minutes
@@ -68,15 +68,15 @@ def _normalize_list(csv_string: str) -> list[str]:
 
 def _check_schedule(current_time: time, config: FilterConfig) -> FilterResult | None:
     """Layer 1: Check if current time is within allowed hours."""
-    start = _parse_time(config.screen_time_start)
-    end = _parse_time(config.screen_time_end)
+    start = _parse_time(config.media_usage_start)
+    end = _parse_time(config.media_usage_end)
 
     if start <= end:
         # Normal range: e.g., 08:00 to 20:00
         if current_time < start or current_time > end:
             return FilterResult(
                 action="block",
-                reason=f"Outside allowed screen time hours ({config.screen_time_start} - {config.screen_time_end})",
+                reason=f"Outside allowed media usage hours ({config.media_usage_start} - {config.media_usage_end})",
                 layer=1,
                 should_strike=False,
             )
@@ -85,7 +85,7 @@ def _check_schedule(current_time: time, config: FilterConfig) -> FilterResult | 
         if current_time > end and current_time < start:
             return FilterResult(
                 action="block",
-                reason=f"Outside allowed screen time hours ({config.screen_time_start} - {config.screen_time_end})",
+                reason=f"Outside allowed media usage hours ({config.media_usage_start} - {config.media_usage_end})",
                 layer=1,
                 should_strike=False,
             )
@@ -249,11 +249,11 @@ def _check_time_limits(media: MediaInfo, config: FilterConfig) -> FilterResult |
             should_strike=False,
         )
 
-    # Total screen time limit (0 = unlimited)
-    if config.screen_time_daily_limit > 0 and config.total_usage_today >= config.screen_time_daily_limit:
+    # Total media usage limit (0 = unlimited)
+    if config.media_usage_daily_limit > 0 and config.total_usage_today >= config.media_usage_daily_limit:
         return FilterResult(
             action="block",
-            reason=f"Total daily screen time limit reached ({config.screen_time_daily_limit:.0f} minutes)",
+            reason=f"Total daily media usage limit reached ({config.media_usage_daily_limit:.0f} minutes)",
             layer=8,
             should_strike=False,
         )

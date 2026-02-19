@@ -14,8 +14,10 @@ A HACS-installable custom integration that monitors media playback across your H
 - **App blocklist/allowlist** — Block or always-allow specific apps by name
 - **Keyword filtering** — Block content with specific words in the title or artist
 - **Title pattern analysis** — Regex-based detection of profanity, suggestive content, drug references, and troll/meme content with configurable strictness (Relaxed/Moderate/Strict)
-- **Time limits** — Per-app (YouTube) and total daily screen time limits with automatic midnight reset
+- **Time limits** — Per-app (YouTube) and total daily media usage limits with automatic midnight reset
 - **Schedule enforcement** — Block playback outside allowed hours
+- **Parent mode** — Per-device toggle to bypass all filtering and usage tracking when a parent is using the device
+- **Schedule-based tracking** — Option to only accumulate usage during configured allowed hours (parent viewing outside those hours is automatically ignored)
 - **OpenAI content analysis** — Optional AI classification of song/video names via the HA Conversation integration
 - **Result caching** — OpenAI results are cached to avoid re-analyzing the same content
 - **TTS announcements** — Announce blocks on supported devices (e.g., Amazon Echo)
@@ -44,7 +46,7 @@ A HACS-installable custom integration that monitors media playback across your H
 3. Follow the config flow:
    - **Step 1**: Select media player devices to monitor
    - **Step 2**: Configure blocked/allowed apps, keywords, content ratings, and filter strictness
-   - **Step 3**: Set time limits, screen time schedule, and max strikes before lockout
+   - **Step 3**: Set time limits, media usage schedule, tracking options, and max strikes before lockout
    - **Step 4**: Configure TTS blocking announcements
    - **Step 5**: Enable/disable OpenAI content analysis
 
@@ -84,6 +86,7 @@ For each monitored device (e.g., `living_room_tv`):
 |--------|------|-------------|
 | `switch.parental_controls_living_room_tv_parental_controls` | Switch | Enable/disable monitoring |
 | `switch.parental_controls_living_room_tv_unlock` | Switch | Turn OFF to unlock device |
+| `switch.parental_controls_living_room_tv_parent_mode` | Switch | Parent mode — bypass all monitoring |
 | `sensor.parental_controls_living_room_tv_strikes` | Sensor | Current strike count |
 | `sensor.parental_controls_living_room_tv_usage_today` | Sensor | Total usage today (min) |
 | `sensor.parental_controls_living_room_tv_youtube_usage_today` | Sensor | YouTube usage today (min) |
@@ -96,7 +99,7 @@ Global entities:
 | `switch.parental_controls_master` | Switch | **Global ON/OFF** — disables ALL monitoring when OFF |
 | `sensor.parental_controls_last_blocked` | Sensor | Last blocked content info |
 | `number.parental_controls_youtube_limit` | Number | YouTube daily limit (min) |
-| `number.parental_controls_screen_time_limit` | Number | Total screen time limit (min) |
+| `number.parental_controls_media_usage_limit` | Number | Total media usage limit (min) |
 | `number.parental_controls_max_strikes` | Number | Strikes before lockout |
 | `select.parental_controls_content_rating` | Select | Max content rating (G/PG/PG-13/R) |
 | `select.parental_controls_music_rating` | Select | Music rating policy |
@@ -111,6 +114,7 @@ Global entities:
 | `parental_controls.clear_cache` | Clear cached OpenAI analysis results |
 | `parental_controls.add_blocked_app` | Add an app to the blocklist |
 | `parental_controls.remove_blocked_app` | Remove an app from the blocklist |
+| `parental_controls.set_parent_mode` | Enable/disable parent mode for a device |
 
 ## Dashboard Example
 
@@ -124,11 +128,12 @@ entities:
   - entity: sensor.parental_controls_apple_tv_living_room_strikes
   - entity: binary_sensor.parental_controls_apple_tv_living_room_locked
   - entity: switch.parental_controls_apple_tv_living_room_unlock
+  - entity: switch.parental_controls_apple_tv_living_room_parent_mode
   - entity: sensor.parental_controls_apple_tv_living_room_usage_today
   - entity: sensor.parental_controls_apple_tv_living_room_youtube_usage_today
   - type: divider
   - entity: number.parental_controls_youtube_limit
-  - entity: number.parental_controls_screen_time_limit
+  - entity: number.parental_controls_media_usage_limit
   - entity: number.parental_controls_max_strikes
   - entity: select.parental_controls_content_rating
   - entity: select.parental_controls_music_rating
