@@ -25,9 +25,10 @@ from .const import (
     CONF_MUSIC_RATING_MAX,
     CONF_OPENAI_AGENT_ID,
     CONF_OPENAI_ENABLED,
-    CONF_SCREEN_TIME_DAILY_LIMIT,
-    CONF_SCREEN_TIME_END,
-    CONF_SCREEN_TIME_START,
+    CONF_MEDIA_USAGE_DAILY_LIMIT,
+    CONF_MEDIA_USAGE_END,
+    CONF_MEDIA_USAGE_START,
+    CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
     CONF_YOUTUBE_DAILY_LIMIT,
@@ -40,9 +41,10 @@ from .const import (
     DEFAULT_MUSIC_RATING,
     DEFAULT_OPENAI_AGENT_ID,
     DEFAULT_OPENAI_ENABLED,
-    DEFAULT_SCREEN_TIME_DAILY_LIMIT,
-    DEFAULT_SCREEN_TIME_END,
-    DEFAULT_SCREEN_TIME_START,
+    DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
+    DEFAULT_MEDIA_USAGE_END,
+    DEFAULT_MEDIA_USAGE_START,
+    DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
     DEFAULT_YOUTUBE_DAILY_LIMIT,
@@ -88,6 +90,8 @@ class ParentalControlsCoordinator:
         self._play_start: dict[str, datetime] = {}
         # Device enabled state: entity_id -> bool
         self._device_enabled: dict[str, bool] = {}
+        # Parent mode: entity_id -> bool (bypasses filtering + tracking)
+        self._parent_mode: dict[str, bool] = {}
         # Global master toggle
         self._global_enabled: bool = True
         # Runtime settings: mutable overrides for config entry options.
@@ -234,6 +238,33 @@ class ParentalControlsCoordinator:
         """Restore device enabled state from persistent storage."""
         self._device_enabled[entity_id] = enabled
 
+    # --- Parent Mode ---
+
+    def is_parent_mode(self, entity_id: str) -> bool:
+        """Check if parent mode is active for a device."""
+        return self._parent_mode.get(entity_id, False)
+
+    def set_parent_mode(self, entity_id: str, enabled: bool) -> None:
+        """Set parent mode for a device.
+
+        When enabling, flushes any accumulated tracking time first so
+        time the child was watching before the parent took over still counts.
+        """
+        if enabled:
+            # Flush any in-progress tracking before switching to parent mode
+            self.stop_tracking_playback(entity_id)
+        self._parent_mode[entity_id] = enabled
+        _LOGGER.info(
+            "Parent mode %s for %s",
+            "enabled" if enabled else "disabled",
+            entity_id,
+        )
+        self._notify_entity_update(entity_id)
+
+    def restore_parent_mode(self, entity_id: str, enabled: bool) -> None:
+        """Restore parent mode state from persistent storage."""
+        self._parent_mode[entity_id] = enabled
+
     # --- Usage Tracking ---
 
     def get_usage_today(self, entity_id: str) -> float:
@@ -280,6 +311,38 @@ class ParentalControlsCoordinator:
         """Restore usage from persistent storage."""
         self._usage_today[entity_id] = total
         self._app_usage_today[entity_id] = app_usage
+
+    # --- Tracking Schedule Helpers ---
+
+    def _is_within_allowed_hours(self) -> bool:
+        """Check if current time is within the allowed media usage hours."""
+        from .content_filter import _parse_time
+
+        start_str = self._get_option(CONF_MEDIA_USAGE_START, DEFAULT_MEDIA_USAGE_START)
+        end_str = self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END)
+        start = _parse_time(start_str)
+        end = _parse_time(end_str)
+        now = datetime.now().time()
+
+        if start <= end:
+            return start <= now <= end
+        else:
+            # Overnight range (e.g., 20:00 to 08:00)
+            return now >= start or now <= end
+
+    def _should_track_now(self) -> bool:
+        """Check if usage tracking should happen right now.
+
+        Returns False when 'track only during allowed hours' is enabled
+        and the current time is outside the allowed window.
+        """
+        track_only = self._get_option(
+            CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+            DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+        )
+        if not track_only:
+            return True
+        return self._is_within_allowed_hours()
 
     # --- OpenAI Cache ---
 
@@ -377,17 +440,23 @@ class ParentalControlsCoordinator:
 
         # Track usage when playback stops
         if old_state and old_state.state == STATE_PLAYING and new_state.state != STATE_PLAYING:
-            app_name = old_state.attributes.get("app_name", "")
-            self.stop_tracking_playback(entity_id, app_name)
+            if not self.is_parent_mode(entity_id):
+                app_name = old_state.attributes.get("app_name", "")
+                self.stop_tracking_playback(entity_id, app_name)
             return
 
         # Only process when transitioning to playing
         if new_state.state != STATE_PLAYING:
             return
 
+        # Parent mode: skip all filtering and tracking
+        if self.is_parent_mode(entity_id):
+            return
+
         # Check if parental controls are enabled for this device
         if not self.is_device_enabled(entity_id):
-            self.start_tracking_playback(entity_id)
+            if self._should_track_now():
+                self.start_tracking_playback(entity_id)
             return
 
         # Check cooldown for locked devices
@@ -426,9 +495,9 @@ class ParentalControlsCoordinator:
             music_rating_max=self._get_option(CONF_MUSIC_RATING_MAX, DEFAULT_MUSIC_RATING),
             filter_strictness=self._get_option(CONF_FILTER_STRICTNESS, DEFAULT_FILTER_STRICTNESS),
             youtube_daily_limit=self._get_option(CONF_YOUTUBE_DAILY_LIMIT, DEFAULT_YOUTUBE_DAILY_LIMIT),
-            screen_time_daily_limit=self._get_option(CONF_SCREEN_TIME_DAILY_LIMIT, DEFAULT_SCREEN_TIME_DAILY_LIMIT),
-            screen_time_start=self._get_option(CONF_SCREEN_TIME_START, DEFAULT_SCREEN_TIME_START),
-            screen_time_end=self._get_option(CONF_SCREEN_TIME_END, DEFAULT_SCREEN_TIME_END),
+            media_usage_daily_limit=self._get_option(CONF_MEDIA_USAGE_DAILY_LIMIT, DEFAULT_MEDIA_USAGE_DAILY_LIMIT),
+            media_usage_start=self._get_option(CONF_MEDIA_USAGE_START, DEFAULT_MEDIA_USAGE_START),
+            media_usage_end=self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END),
             openai_enabled=self._get_option(CONF_OPENAI_ENABLED, DEFAULT_OPENAI_ENABLED),
             is_device_locked=self.is_device_locked(entity_id),
             youtube_usage_today=self.get_app_usage_today(entity_id, "youtube"),
@@ -462,7 +531,8 @@ class ParentalControlsCoordinator:
             await self._block_media(entity_id, result)
         else:
             # Content allowed, start tracking usage
-            self.start_tracking_playback(entity_id)
+            if self._should_track_now():
+                self.start_tracking_playback(entity_id)
             _LOGGER.debug(
                 "Content allowed on %s: %s - %s (layer %d: %s)",
                 entity_id,

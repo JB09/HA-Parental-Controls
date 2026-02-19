@@ -25,10 +25,11 @@
         "description": "Set daily usage limits and the strike threshold for device lockout. Set any value to 0 for unlimited.",
         "data": {
           "youtube_daily_limit": "YouTube daily limit in minutes (0 = unlimited)",
-          "screen_time_daily_limit": "Total screen time daily limit in minutes (0 = unlimited)",
-          "screen_time_start": "Screen time allowed from",
-          "screen_time_end": "Screen time allowed until",
-          "max_strikes": "Strikes before device lockout (0 = unlimited)"
+          "media_usage_daily_limit": "Total media usage daily limit in minutes (0 = unlimited)",
+          "media_usage_start": "Media usage allowed from",
+          "media_usage_end": "Media usage allowed until",
+          "max_strikes": "Strikes before device lockout (0 = unlimited)",
+          "media_usage_track_only_allowed_hours": "Only track usage during allowed hours"
         }
       },
       "blocking": {
@@ -72,10 +73,11 @@
           "music_rating_max": "Music rating policy",
           "filter_strictness": "Title filter strictness",
           "youtube_daily_limit": "YouTube daily limit in minutes (0 = unlimited)",
-          "screen_time_daily_limit": "Total screen time daily limit in minutes (0 = unlimited)",
-          "screen_time_start": "Screen time allowed from",
-          "screen_time_end": "Screen time allowed until",
+          "media_usage_daily_limit": "Total media usage daily limit in minutes (0 = unlimited)",
+          "media_usage_start": "Media usage allowed from",
+          "media_usage_end": "Media usage allowed until",
           "max_strikes": "Strikes before device lockout (0 = unlimited)",
+          "media_usage_track_only_allowed_hours": "Only track usage during allowed hours",
           "tts_enabled": "Enable TTS announcements",
           "tts_service": "TTS entity",
           "openai_enabled": "Enable OpenAI content analysis",

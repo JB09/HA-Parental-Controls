@@ -21,9 +21,10 @@ from .const import (
     CONF_MUSIC_RATING_MAX,
     CONF_OPENAI_AGENT_ID,
     CONF_OPENAI_ENABLED,
-    CONF_SCREEN_TIME_DAILY_LIMIT,
-    CONF_SCREEN_TIME_END,
-    CONF_SCREEN_TIME_START,
+    CONF_MEDIA_USAGE_DAILY_LIMIT,
+    CONF_MEDIA_USAGE_END,
+    CONF_MEDIA_USAGE_START,
+    CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
     CONF_TTS_ENABLED,
     CONF_TTS_SERVICE,
     CONF_YOUTUBE_DAILY_LIMIT,
@@ -34,12 +35,13 @@ from .const import (
     DEFAULT_CONTENT_RATING,
     DEFAULT_FILTER_STRICTNESS,
     DEFAULT_MAX_STRIKES,
+    DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
+    DEFAULT_MEDIA_USAGE_END,
+    DEFAULT_MEDIA_USAGE_START,
+    DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
     DEFAULT_MUSIC_RATING,
     DEFAULT_OPENAI_AGENT_ID,
     DEFAULT_OPENAI_ENABLED,
-    DEFAULT_SCREEN_TIME_DAILY_LIMIT,
-    DEFAULT_SCREEN_TIME_END,
-    DEFAULT_SCREEN_TIME_START,
     DEFAULT_TTS_ENABLED,
     DEFAULT_TTS_SERVICE,
     DEFAULT_YOUTUBE_DAILY_LIMIT,
@@ -239,8 +241,8 @@ class ParentalControlsConfigFlow(
                         )
                     ),
                     vol.Optional(
-                        CONF_SCREEN_TIME_DAILY_LIMIT,
-                        default=DEFAULT_SCREEN_TIME_DAILY_LIMIT,
+                        CONF_MEDIA_USAGE_DAILY_LIMIT,
+                        default=DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0,
@@ -251,10 +253,10 @@ class ParentalControlsConfigFlow(
                         )
                     ),
                     vol.Optional(
-                        CONF_SCREEN_TIME_START, default=DEFAULT_SCREEN_TIME_START
+                        CONF_MEDIA_USAGE_START, default=DEFAULT_MEDIA_USAGE_START
                     ): selector.TimeSelector(),
                     vol.Optional(
-                        CONF_SCREEN_TIME_END, default=DEFAULT_SCREEN_TIME_END
+                        CONF_MEDIA_USAGE_END, default=DEFAULT_MEDIA_USAGE_END
                     ): selector.TimeSelector(),
                     vol.Optional(
                         CONF_MAX_STRIKES, default=DEFAULT_MAX_STRIKES
@@ -266,6 +268,10 @@ class ParentalControlsConfigFlow(
                             mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
+                    vol.Optional(
+                        CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+                        default=DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+                    ): selector.BooleanSelector(),
                 }
             ),
         )
@@ -434,8 +440,8 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
                     vol.Optional(
-                        CONF_SCREEN_TIME_DAILY_LIMIT,
-                        default=self._get_current(CONF_SCREEN_TIME_DAILY_LIMIT, DEFAULT_SCREEN_TIME_DAILY_LIMIT),
+                        CONF_MEDIA_USAGE_DAILY_LIMIT,
+                        default=self._get_current(CONF_MEDIA_USAGE_DAILY_LIMIT, DEFAULT_MEDIA_USAGE_DAILY_LIMIT),
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0,
@@ -446,12 +452,12 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                         )
                     ),
                     vol.Optional(
-                        CONF_SCREEN_TIME_START,
-                        default=self._get_current(CONF_SCREEN_TIME_START, DEFAULT_SCREEN_TIME_START),
+                        CONF_MEDIA_USAGE_START,
+                        default=self._get_current(CONF_MEDIA_USAGE_START, DEFAULT_MEDIA_USAGE_START),
                     ): selector.TimeSelector(),
                     vol.Optional(
-                        CONF_SCREEN_TIME_END,
-                        default=self._get_current(CONF_SCREEN_TIME_END, DEFAULT_SCREEN_TIME_END),
+                        CONF_MEDIA_USAGE_END,
+                        default=self._get_current(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END),
                     ): selector.TimeSelector(),
                     vol.Optional(
                         CONF_MAX_STRIKES,
@@ -464,6 +470,13 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                             mode=selector.NumberSelectorMode.BOX,
                         )
                     ),
+                    vol.Optional(
+                        CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+                        default=self._get_current(
+                            CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+                            DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
+                        ),
+                    ): selector.BooleanSelector(),
                     vol.Optional(
                         CONF_TTS_ENABLED,
                         default=self._get_current(CONF_TTS_ENABLED, DEFAULT_TTS_ENABLED),
