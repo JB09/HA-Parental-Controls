@@ -4,8 +4,11 @@ from __future__ import annotations
 
 DOMAIN = "parental_controls"
 
-# Platforms
-PLATFORMS = ["sensor", "switch", "binary_sensor", "number", "select"]
+
+def device_slug(entity_id: str) -> str:
+    """Convert media_player.living_room_tv to living_room_tv."""
+    return entity_id.replace("media_player.", "").replace(".", "_")
+
 
 # Config keys
 CONF_MONITORED_PLAYERS = "monitored_players"

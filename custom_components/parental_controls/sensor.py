@@ -11,14 +11,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_MONITORED_PLAYERS, DOMAIN
+from .const import CONF_MONITORED_PLAYERS, DOMAIN, device_slug
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _device_slug(entity_id: str) -> str:
-    """Convert media_player.living_room_tv to living_room_tv."""
-    return entity_id.replace("media_player.", "").replace(".", "_")
 
 
 async def async_setup_entry(
@@ -95,9 +90,15 @@ class StrikeSensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_strikes"
         self._attr_name = f"{slug} strikes"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Restore strike count on startup."""
@@ -144,9 +145,15 @@ class UsageTodaySensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_usage_today"
         self._attr_name = f"{slug} usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Restore usage on startup."""
@@ -176,8 +183,8 @@ class UsageTodaySensor(ParentalControlsSensorBase):
         """Return per-app breakdown."""
         return {
             "monitored_player": self._player_entity_id,
-            "app_usage": self._coordinator._app_usage_today.get(
-                self._player_entity_id, {}
+            "app_usage": self._coordinator.get_all_app_usage_today(
+                self._player_entity_id
             ),
         }
 
@@ -197,9 +204,15 @@ class YouTubeUsageSensor(ParentalControlsSensorBase):
         """Initialize."""
         super().__init__(coordinator, config_entry)
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_youtube_usage_today"
         self._attr_name = f"{slug} YouTube usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Handle coordinator state update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:

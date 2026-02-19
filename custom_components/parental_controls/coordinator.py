@@ -7,8 +7,9 @@ orchestrates the content filter pipeline + blocking actions.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
+
+from homeassistant.util import dt as dt_util
 
 from homeassistant.components.media_player import DOMAIN as MP_DOMAIN
 from homeassistant.const import STATE_PLAYING
@@ -62,9 +63,9 @@ from .content_filter import (
     FilterResult,
     MediaInfo,
     build_openai_prompt,
+    cache_key,
     parse_openai_response,
     run_local_filters,
-    _cache_key,
 )
 
 if TYPE_CHECKING:
@@ -281,9 +282,13 @@ class ParentalControlsCoordinator:
         app_usage = self._app_usage_today.get(entity_id, {})
         return app_usage.get(app_name.lower(), 0.0)
 
+    def get_all_app_usage_today(self, entity_id: str) -> dict[str, float]:
+        """Get full per-app usage breakdown for a device."""
+        return dict(self._app_usage_today.get(entity_id, {}))
+
     def start_tracking_playback(self, entity_id: str) -> None:
         """Mark that a device started playing (for usage calculation)."""
-        self._play_start[entity_id] = datetime.now()
+        self._play_start[entity_id] = dt_util.now()
 
     def stop_tracking_playback(self, entity_id: str, app_name: str = "") -> None:
         """Mark that a device stopped playing, accumulate usage."""
@@ -291,7 +296,7 @@ class ParentalControlsCoordinator:
         if start is None:
             return
 
-        elapsed = (datetime.now() - start).total_seconds() / 60.0
+        elapsed = (dt_util.now() - start).total_seconds() / 60.0
         self._usage_today[entity_id] = self._usage_today.get(entity_id, 0.0) + elapsed
 
         if app_name:
@@ -327,7 +332,7 @@ class ParentalControlsCoordinator:
         end_str = self._get_option(CONF_MEDIA_USAGE_END, DEFAULT_MEDIA_USAGE_END)
         start = _parse_time(start_str)
         end = _parse_time(end_str)
-        now = datetime.now().time()
+        now = dt_util.now().time()
 
         if start <= end:
             return start <= now <= end
@@ -353,12 +358,12 @@ class ParentalControlsCoordinator:
 
     def get_cached_result(self, title: str) -> str | None:
         """Get cached OpenAI result for a title."""
-        key = _cache_key(title)
+        key = cache_key(title)
         return self._openai_cache.get(key)
 
     def set_cached_result(self, title: str, result: str) -> None:
         """Cache an OpenAI result."""
-        key = _cache_key(title)
+        key = cache_key(title)
         # Evict oldest entries if cache is full
         if len(self._openai_cache) >= OPENAI_CACHE_MAX_ENTRIES:
             # Remove first 20% of entries
@@ -384,24 +389,17 @@ class ParentalControlsCoordinator:
         """Add an app to the blocklist at runtime."""
         current = self._get_option(CONF_BLOCKED_APPS, DEFAULT_BLOCKED_APPS)
         apps = [a.strip() for a in current.split(",") if a.strip()]
-        if app_name not in apps:
+        existing_lower = {a.lower() for a in apps}
+        if app_name.lower() not in existing_lower:
             apps.append(app_name)
-            new_options = dict(self.config_entry.options)
-            new_options[CONF_BLOCKED_APPS] = ",".join(apps)
-            self.hass.config_entries.async_update_entry(
-                self.config_entry, options=new_options
-            )
+            self.set_runtime_setting(CONF_BLOCKED_APPS, ",".join(apps))
 
     def remove_blocked_app(self, app_name: str) -> None:
         """Remove an app from the blocklist at runtime."""
         current = self._get_option(CONF_BLOCKED_APPS, DEFAULT_BLOCKED_APPS)
         apps = [a.strip() for a in current.split(",") if a.strip()]
         apps = [a for a in apps if a.lower() != app_name.lower()]
-        new_options = dict(self.config_entry.options)
-        new_options[CONF_BLOCKED_APPS] = ",".join(apps)
-        self.hass.config_entries.async_update_entry(
-            self.config_entry, options=new_options
-        )
+        self.set_runtime_setting(CONF_BLOCKED_APPS, ",".join(apps))
 
     # --- Entity Update Notification ---
 
@@ -468,7 +466,7 @@ class ParentalControlsCoordinator:
         if self.is_device_locked(entity_id):
             last_block = self._last_block_time.get(entity_id)
             if last_block:
-                elapsed = (datetime.now() - last_block).total_seconds()
+                elapsed = (dt_util.now() - last_block).total_seconds()
                 if elapsed < LOCKOUT_COOLDOWN_SECONDS:
                     # Fast-path block without full pipeline
                     await self._block_media(
@@ -516,7 +514,7 @@ class ParentalControlsCoordinator:
         self, entity_id: str, media: MediaInfo, config: FilterConfig
     ) -> None:
         """Run the full filter pipeline and take action."""
-        current_time = datetime.now().time()
+        current_time = dt_util.now().time()
         result = run_local_filters(media, config, current_time)
 
         # None means OpenAI analysis needed
@@ -603,11 +601,11 @@ class ParentalControlsCoordinator:
 
     async def _block_media(self, entity_id: str, result: FilterResult) -> None:
         """Execute the blocking sequence on a media player."""
-        self._last_block_time[entity_id] = datetime.now()
-        friendly_name = self.hass.states.get(entity_id)
+        self._last_block_time[entity_id] = dt_util.now()
+        state_obj = self.hass.states.get(entity_id)
         friendly = (
-            friendly_name.attributes.get("friendly_name", entity_id)
-            if friendly_name
+            state_obj.attributes.get("friendly_name", entity_id)
+            if state_obj
             else entity_id
         )
 

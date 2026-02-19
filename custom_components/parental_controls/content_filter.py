@@ -111,7 +111,7 @@ def _check_blocked_apps(media: MediaInfo, config: FilterConfig) -> FilterResult 
         return None
 
     for blocked in config.blocked_apps:
-        if blocked and (blocked in app_lower or app_lower in blocked):
+        if blocked and blocked == app_lower:
             return FilterResult(
                 action="block",
                 reason=f"App '{media.app_name}' is on the blocked list",
@@ -128,7 +128,7 @@ def _check_allowed_apps(media: MediaInfo, config: FilterConfig) -> FilterResult 
         return None
 
     for allowed in config.allowed_apps:
-        if allowed and (allowed in app_lower or app_lower in allowed):
+        if allowed and allowed == app_lower:
             return FilterResult(
                 action="allow",
                 reason=f"App '{media.app_name}' is on the allowed list",
@@ -176,6 +176,25 @@ def _build_pattern_list(strictness: str) -> list[str]:
     return words
 
 
+# Pre-compiled regex patterns keyed by strictness level.
+# Built lazily on first use so the module loads fast.
+_compiled_patterns: dict[str, list[tuple[re.Pattern[str], str]]] = {}
+
+
+def _get_compiled_patterns(strictness: str) -> list[tuple[re.Pattern[str], str]]:
+    """Return pre-compiled (pattern, word) pairs for a strictness level."""
+    if strictness not in _compiled_patterns:
+        words = _build_pattern_list(strictness)
+        compiled: list[tuple[re.Pattern[str], str]] = []
+        for word in words:
+            escaped = re.escape(word)
+            if " " not in word:
+                escaped = rf"\b{escaped}\b"
+            compiled.append((re.compile(escaped), word))
+        _compiled_patterns[strictness] = compiled
+    return _compiled_patterns[strictness]
+
+
 def _check_title_patterns(
     media: MediaInfo, config: FilterConfig
 ) -> FilterResult | None:
@@ -184,15 +203,8 @@ def _check_title_patterns(
     if not content.strip():
         return None
 
-    words = _build_pattern_list(config.filter_strictness)
-
-    for word in words:
-        # Use word-boundary matching to reduce false positives
-        # For multi-word patterns, match literally
-        pattern = re.escape(word)
-        if " " not in word:
-            pattern = rf"\b{pattern}\b"
-        if re.search(pattern, content):
+    for pattern, word in _get_compiled_patterns(config.filter_strictness):
+        if pattern.search(content):
             return FilterResult(
                 action="block",
                 reason=f"Title/artist matched inappropriate content pattern: '{word}'",
@@ -202,7 +214,7 @@ def _check_title_patterns(
     return None
 
 
-def _cache_key(title: str) -> str:
+def cache_key(title: str) -> str:
     """Generate a normalized cache key from a media title."""
     return title.lower().strip()[:100]
 
@@ -212,7 +224,7 @@ def _check_cache(media: MediaInfo, config: FilterConfig) -> FilterResult | None:
     if not media.media_title:
         return None
 
-    key = _cache_key(media.media_title)
+    key = cache_key(media.media_title)
     cached = config.cached_results.get(key)
 
     if cached == "blocked":

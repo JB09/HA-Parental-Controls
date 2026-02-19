@@ -14,14 +14,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_MONITORED_PLAYERS, DOMAIN
+from .const import CONF_MONITORED_PLAYERS, DOMAIN, device_slug
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _device_slug(entity_id: str) -> str:
-    """Convert media_player.living_room_tv to living_room_tv."""
-    return entity_id.replace("media_player.", "").replace(".", "_")
 
 
 async def async_setup_entry(
@@ -61,7 +56,7 @@ class DeviceLockedSensor(RestoreEntity, BinarySensorEntity):
         self._coordinator = coordinator
         self._config_entry = config_entry
         self._player_entity_id = player_entity_id
-        slug = _device_slug(player_entity_id)
+        slug = device_slug(player_entity_id)
         self._attr_unique_id = f"{config_entry.entry_id}_{slug}_locked"
         self._attr_name = f"{slug} locked"
         self._attr_device_info = {
@@ -83,8 +78,9 @@ class DeviceLockedSensor(RestoreEntity, BinarySensorEntity):
 
     @callback
     def _handle_update(self, entity_id: str) -> None:
-        """Handle coordinator update."""
-        self.async_write_ha_state()
+        """Handle coordinator update for this device only."""
+        if entity_id == self._player_entity_id:
+            self.async_write_ha_state()
 
     @property
     def is_on(self) -> bool:
