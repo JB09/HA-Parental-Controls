@@ -369,14 +369,14 @@ class ParentalControlsCoordinator:
 
     # --- OpenAI Cache ---
 
-    def get_cached_result(self, title: str) -> str | None:
+    def get_cached_result(self, title: str, artist: str = "") -> str | None:
         """Get cached OpenAI result for a title."""
-        key = cache_key(title)
+        key = cache_key(title, artist)
         return self._openai_cache.get(key)
 
-    def set_cached_result(self, title: str, result: str) -> None:
+    def set_cached_result(self, title: str, artist: str = "", *, result: str) -> None:
         """Cache an OpenAI result."""
-        key = cache_key(title)
+        key = cache_key(title, artist)
         # Evict oldest entries if cache is full
         if len(self._openai_cache) >= OPENAI_CACHE_MAX_ENTRIES:
             # Remove first 20% of entries
@@ -594,7 +594,7 @@ class ParentalControlsCoordinator:
             result = parse_openai_response(response_text)
 
             # Cache the result
-            self.set_cached_result(media.media_title, result.action)
+            self.set_cached_result(media.media_title, media.media_artist, result=result.action)
 
             _LOGGER.info(
                 "OpenAI analysis for '%s' by '%s': %s",
