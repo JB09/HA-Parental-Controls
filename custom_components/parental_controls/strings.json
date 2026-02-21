@@ -15,8 +15,8 @@
           "blocked_apps": "Blocked apps (comma-separated)",
           "allowed_apps": "Always allowed apps (comma-separated)",
           "blocked_keywords": "Blocked keywords in titles (comma-separated)",
-          "content_rating_max": "Maximum content rating",
-          "music_rating_max": "Music rating policy",
+          "content_rating_max": "Maximum content rating (used by AI analysis)",
+          "music_rating_max": "Music rating policy (used by AI analysis)",
           "filter_strictness": "Title filter strictness"
         }
       },
@@ -72,8 +72,8 @@
           "blocked_apps": "Blocked apps (comma-separated)",
           "allowed_apps": "Always allowed apps (comma-separated)",
           "blocked_keywords": "Blocked keywords in titles (comma-separated)",
-          "content_rating_max": "Maximum content rating",
-          "music_rating_max": "Music rating policy",
+          "content_rating_max": "Maximum content rating (used by AI analysis)",
+          "music_rating_max": "Music rating policy (used by AI analysis)",
           "filter_strictness": "Title filter strictness",
           "tracked_apps": "Apps to track for usage limit (comma-separated)",
           "tracked_apps_daily_limit": "Tracked apps daily limit in minutes (0 = unlimited)",
