@@ -215,9 +215,60 @@ def _check_title_patterns(
     return None
 
 
-def cache_key(title: str) -> str:
-    """Generate a normalized cache key from a media title."""
-    return title.lower().strip()[:100]
+# Pre-compiled pattern for detecting episode-like numbering in titles/artists.
+_EPISODE_PATTERN = re.compile(
+    r"s\d+\s*[.:x]?\s*e\d+"          # S01E02, S1E2, S01.E02, S1:E2
+    r"|season\s+\d+[\s,]*episode\s+\d+"  # Season 1 Episode 2
+    r"|\d+x\d+"                       # 1x02
+    r"|\bepisode\s+\d+"              # Episode 1
+    r"|\bep\.?\s+\d+"               # Ep. 3, Ep 3
+    r"|\bpart\s+\d+"                # Part 1
+    r"|\bpt\.?\s+\d+"              # Pt. 2, Pt 3
+    r"|\bchapter\s+\d+"            # Chapter 1
+    r"|\bch\.?\s+\d+",             # Ch. 5, Ch 2
+    re.IGNORECASE,
+)
+
+
+def _has_episode_pattern(text: str) -> bool:
+    """Check if text contains episode-like numbering patterns."""
+    return bool(_EPISODE_PATTERN.search(text))
+
+
+def _strip_episode_info(title: str) -> str:
+    """Remove episode numbering patterns from a title for cache normalisation.
+
+    Returns a stripped version of the title, or the original if stripping
+    would produce an empty string.
+    """
+    stripped = _EPISODE_PATTERN.sub("", title)
+    # Remove trailing separators left behind after stripping
+    stripped = re.sub(r"[\s]*[-:|—][\s]*$", "", stripped)
+    # Remove leading separators too
+    stripped = re.sub(r"^[\s]*[-:|—][\s]*", "", stripped)
+    # Collapse multiple spaces
+    stripped = re.sub(r"\s{2,}", " ", stripped).strip()
+    return stripped if stripped else title
+
+
+def cache_key(title: str, artist: str = "") -> str:
+    """Generate a normalized cache key from media info.
+
+    For series (episode pattern detected in title or artist): strips episode
+    numbering so all episodes share one cache entry.
+    For everything else (music, movies): includes artist to prevent
+    cross-artist collisions.
+    """
+    normalized_title = title.lower().strip()
+    normalized_artist = artist.lower().strip()
+
+    if _has_episode_pattern(normalized_title) or _has_episode_pattern(normalized_artist):
+        stripped = _strip_episode_info(normalized_title)
+        return stripped[:100]
+
+    if normalized_artist:
+        return f"{normalized_title} | {normalized_artist}"[:100]
+    return normalized_title[:100]
 
 
 def _check_cache(media: MediaInfo, config: FilterConfig) -> FilterResult | None:
@@ -225,7 +276,7 @@ def _check_cache(media: MediaInfo, config: FilterConfig) -> FilterResult | None:
     if not media.media_title:
         return None
 
-    key = cache_key(media.media_title)
+    key = cache_key(media.media_title, media.media_artist)
     cached = config.cached_results.get(key)
 
     if cached == "blocked":
