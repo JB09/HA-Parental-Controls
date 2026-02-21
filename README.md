@@ -14,7 +14,7 @@ A HACS-installable custom integration that monitors media playback across your H
 - **App blocklist/allowlist** — Block or always-allow specific apps by name
 - **Keyword filtering** — Block content with specific words in the title or artist
 - **Title pattern analysis** — Regex-based detection of profanity, suggestive content, drug references, and troll/meme content with configurable strictness (Relaxed/Moderate/Strict)
-- **Time limits** — Per-app (YouTube) and total daily media usage limits with automatic midnight reset
+- **Time limits** — Per-app and total daily media usage limits with automatic midnight reset
 - **Schedule enforcement** — Block playback outside allowed hours
 - **Parent mode** — Per-device toggle to bypass all filtering and usage tracking when a parent is using the device
 - **Schedule-based tracking** — Option to only accumulate usage during configured allowed hours (parent viewing outside those hours is automatically ignored)
@@ -68,6 +68,8 @@ Content is checked through 9 layers. Layers 1-8 use zero API tokens:
 | 8 | Time limit exceeded? | 0 | Block (no strike) |
 | 9 | OpenAI analysis (if enabled) | ~150 | Block + strike or cache as safe |
 
+> **Note:** The "Max content rating" and "Music rating policy" settings are evaluated in Layer 9 only. They are passed as context to the AI model — there is no local rating lookup. If AI content analysis is disabled, these two settings have no effect.
+
 ## Strike System
 
 Content violations increment a per-device strike counter:
@@ -89,7 +91,7 @@ For each monitored device (e.g., `living_room_tv`):
 | `switch.parental_controls_living_room_tv_parent_mode` | Switch | Parent mode — bypass all monitoring |
 | `sensor.parental_controls_living_room_tv_strikes` | Sensor | Current strike count |
 | `sensor.parental_controls_living_room_tv_usage_today` | Sensor | Total usage today (min) |
-| `sensor.parental_controls_living_room_tv_youtube_usage_today` | Sensor | YouTube usage today (min) |
+| `sensor.parental_controls_living_room_tv_tracked_apps_usage_today` | Sensor | Tracked apps usage today (min) |
 | `binary_sensor.parental_controls_living_room_tv_locked` | Binary Sensor | Locked status |
 
 Global entities:
@@ -98,11 +100,11 @@ Global entities:
 |--------|------|-------------|
 | `switch.parental_controls_master` | Switch | **Global ON/OFF** — disables ALL monitoring when OFF |
 | `sensor.parental_controls_last_blocked` | Sensor | Last blocked content info |
-| `number.parental_controls_youtube_limit` | Number | YouTube daily limit (min) |
+| `number.parental_controls_tracked_apps_limit` | Number | Tracked apps daily limit (min) |
 | `number.parental_controls_media_usage_limit` | Number | Total media usage limit (min) |
 | `number.parental_controls_max_strikes` | Number | Strikes before lockout |
-| `select.parental_controls_content_rating` | Select | Max content rating (G/PG/PG-13/R) |
-| `select.parental_controls_music_rating` | Select | Music rating policy |
+| `select.parental_controls_content_rating` | Select | Max content rating (G/PG/PG-13/R) — requires AI analysis |
+| `select.parental_controls_music_rating` | Select | Music rating policy — requires AI analysis |
 | `select.parental_controls_filter_strictness` | Select | Title filter strictness |
 
 ## Services
@@ -130,9 +132,9 @@ entities:
   - entity: switch.parental_controls_apple_tv_living_room_unlock
   - entity: switch.parental_controls_apple_tv_living_room_parent_mode
   - entity: sensor.parental_controls_apple_tv_living_room_usage_today
-  - entity: sensor.parental_controls_apple_tv_living_room_youtube_usage_today
+  - entity: sensor.parental_controls_apple_tv_living_room_tracked_apps_usage_today
   - type: divider
-  - entity: number.parental_controls_youtube_limit
+  - entity: number.parental_controls_tracked_apps_limit
   - entity: number.parental_controls_media_usage_limit
   - entity: number.parental_controls_max_strikes
   - entity: select.parental_controls_content_rating
