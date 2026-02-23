@@ -12,6 +12,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ALLOWED_APPS,
+    CONF_AUDIO_DAILY_LIMIT,
     CONF_BLOCKED_APPS,
     CONF_BLOCKED_KEYWORDS,
     CONF_CONTENT_RATING_MAX,
@@ -31,8 +32,11 @@ from .const import (
     CONF_TTS_SERVICE,
     CONF_TRACKED_APPS,
     CONF_TRACKED_APPS_DAILY_LIMIT,
+    CONF_USAGE_LIMIT_MODE,
+    CONF_VIDEO_DAILY_LIMIT,
     CONTENT_RATINGS,
     DEFAULT_ALLOWED_APPS,
+    DEFAULT_AUDIO_DAILY_LIMIT,
     DEFAULT_BLOCKED_APPS,
     DEFAULT_BLOCKED_KEYWORDS,
     DEFAULT_CONTENT_RATING,
@@ -51,9 +55,12 @@ from .const import (
     DEFAULT_TTS_SERVICE,
     DEFAULT_TRACKED_APPS,
     DEFAULT_TRACKED_APPS_DAILY_LIMIT,
+    DEFAULT_USAGE_LIMIT_MODE,
+    DEFAULT_VIDEO_DAILY_LIMIT,
     DOMAIN,
     FILTER_STRICTNESS_OPTIONS,
     MUSIC_RATINGS,
+    USAGE_LIMIT_MODE_OPTIONS,
 )
 
 
@@ -177,7 +184,7 @@ class ParentalControlsConfigFlow(
 ):
     """Handle a config flow for Parental Controls."""
 
-    VERSION = 2
+    VERSION = 3
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -321,6 +328,39 @@ class ParentalControlsConfigFlow(
                         CONF_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
                         default=DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_USAGE_LIMIT_MODE,
+                        default=DEFAULT_USAGE_LIMIT_MODE,
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=USAGE_LIMIT_MODE_OPTIONS,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_VIDEO_DAILY_LIMIT,
+                        default=DEFAULT_VIDEO_DAILY_LIMIT,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1440,
+                            step=15,
+                            unit_of_measurement="minutes",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_AUDIO_DAILY_LIMIT,
+                        default=DEFAULT_AUDIO_DAILY_LIMIT,
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1440,
+                            step=15,
+                            unit_of_measurement="minutes",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
                 }
             ),
         )
@@ -541,6 +581,45 @@ class ParentalControlsOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_MEDIA_USAGE_TRACK_ONLY_ALLOWED_HOURS,
                         ),
                     ): selector.BooleanSelector(),
+                    vol.Optional(
+                        CONF_USAGE_LIMIT_MODE,
+                        default=self._get_current(
+                            CONF_USAGE_LIMIT_MODE, DEFAULT_USAGE_LIMIT_MODE
+                        ),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=USAGE_LIMIT_MODE_OPTIONS,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_VIDEO_DAILY_LIMIT,
+                        default=self._get_current(
+                            CONF_VIDEO_DAILY_LIMIT, DEFAULT_VIDEO_DAILY_LIMIT
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1440,
+                            step=15,
+                            unit_of_measurement="minutes",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(
+                        CONF_AUDIO_DAILY_LIMIT,
+                        default=self._get_current(
+                            CONF_AUDIO_DAILY_LIMIT, DEFAULT_AUDIO_DAILY_LIMIT
+                        ),
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=0,
+                            max=1440,
+                            step=15,
+                            unit_of_measurement="minutes",
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
                     vol.Optional(
                         CONF_TTS_ENABLED,
                         default=self._get_current(CONF_TTS_ENABLED, DEFAULT_TTS_ENABLED),

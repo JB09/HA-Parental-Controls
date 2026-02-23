@@ -30,7 +30,10 @@
           "media_usage_start": "Media usage allowed from",
           "media_usage_end": "Media usage allowed until",
           "max_strikes": "Strikes before device lockout (0 = unlimited)",
-          "media_usage_track_only_allowed_hours": "Only track usage during allowed hours"
+          "media_usage_track_only_allowed_hours": "Only track usage during allowed hours",
+          "usage_limit_mode": "Usage limit enforcement mode (per device or aggregate)",
+          "video_daily_limit": "Video daily limit in minutes (0 = unlimited)",
+          "audio_daily_limit": "Audio daily limit in minutes (0 = unlimited)"
         }
       },
       "blocking": {
@@ -82,6 +85,9 @@
           "media_usage_end": "Media usage allowed until",
           "max_strikes": "Strikes before device lockout (0 = unlimited)",
           "media_usage_track_only_allowed_hours": "Only track usage during allowed hours",
+          "usage_limit_mode": "Usage limit enforcement mode (per device or aggregate)",
+          "video_daily_limit": "Video daily limit in minutes (0 = unlimited)",
+          "audio_daily_limit": "Audio daily limit in minutes (0 = unlimited)",
           "tts_enabled": "Enable TTS announcements",
           "tts_service": "TTS entity",
           "push_notify_enabled": "Enable companion app notifications on lockout",

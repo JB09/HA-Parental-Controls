@@ -14,7 +14,8 @@ A HACS-installable custom integration that monitors media playback across your H
 - **App blocklist/allowlist** — Block or always-allow specific apps by name
 - **Keyword filtering** — Block content with specific words in the title or artist
 - **Title pattern analysis** — Regex-based detection of profanity, suggestive content, drug references, and troll/meme content with configurable strictness (Relaxed/Moderate/Strict)
-- **Time limits** — Per-app and total daily media usage limits with automatic midnight reset
+- **Time limits** — Per-app, total, video, and audio daily usage limits with automatic midnight reset
+- **Aggregate or per-device enforcement** — Enforce time limits per device or across all monitored devices as a household total
 - **Schedule enforcement** — Block playback outside allowed hours
 - **Parent mode** — Per-device toggle to bypass all filtering and usage tracking when a parent is using the device
 - **Schedule-based tracking** — Option to only accumulate usage during configured allowed hours (parent viewing outside those hours is automatically ignored)
@@ -80,6 +81,24 @@ Content violations increment a per-device strike counter:
 - **Unlock**: Use the unlock switch entity or call `parental_controls.unlock_device`
 - **Persistence**: Strikes survive HA restarts
 
+## Usage Limit Mode
+
+Time limits can be enforced in two modes, controlled by the **Usage limit mode** select entity:
+
+- **per_device** (default) — Each device has its own independent usage counters. A 120-minute limit means each device gets 120 minutes.
+- **aggregate** — Usage is summed across all monitored devices. A 120-minute limit means 120 minutes total across the household.
+
+This applies to all time-based limits: tracked apps, total media, video, and audio.
+
+## Media Type Tracking
+
+Usage is automatically classified as **video** or **audio**:
+
+- **Audio**: Media with an artist name and no episode pattern (e.g., music on Spotify)
+- **Video**: Everything else — TV shows, movies, live TV, clips, and unknown content
+
+This classification uses the same episode-detection heuristics as the caching system. Separate daily limits can be set for video and audio (0 = unlimited).
+
 ## Entities Created
 
 For each monitored device (e.g., `living_room_tv`):
@@ -100,12 +119,18 @@ Global entities:
 |--------|------|-------------|
 | `switch.parental_controls_master` | Switch | **Global ON/OFF** — disables ALL monitoring when OFF |
 | `sensor.parental_controls_last_blocked` | Sensor | Last blocked content info |
+| `sensor.parental_controls_aggregate_usage_today` | Sensor | Total usage across all devices (min) |
+| `sensor.parental_controls_aggregate_video_usage_today` | Sensor | Video usage across all devices (min) |
+| `sensor.parental_controls_aggregate_audio_usage_today` | Sensor | Audio usage across all devices (min) |
 | `number.parental_controls_tracked_apps_limit` | Number | Tracked apps daily limit (min) |
 | `number.parental_controls_media_usage_limit` | Number | Total media usage limit (min) |
+| `number.parental_controls_video_daily_limit` | Number | Video daily limit (min, 0 = unlimited) |
+| `number.parental_controls_audio_daily_limit` | Number | Audio daily limit (min, 0 = unlimited) |
 | `number.parental_controls_max_strikes` | Number | Strikes before lockout |
 | `select.parental_controls_content_rating` | Select | Max content rating (G/PG/PG-13/R) — requires AI analysis |
 | `select.parental_controls_music_rating` | Select | Music rating policy — requires AI analysis |
 | `select.parental_controls_filter_strictness` | Select | Title filter strictness |
+| `select.parental_controls_usage_limit_mode` | Select | Usage limit mode (per_device / aggregate) |
 
 ## Services
 
@@ -136,11 +161,17 @@ entities:
   - type: divider
   - entity: number.parental_controls_tracked_apps_limit
   - entity: number.parental_controls_media_usage_limit
+  - entity: number.parental_controls_video_daily_limit
+  - entity: number.parental_controls_audio_daily_limit
   - entity: number.parental_controls_max_strikes
   - entity: select.parental_controls_content_rating
   - entity: select.parental_controls_music_rating
   - entity: select.parental_controls_filter_strictness
+  - entity: select.parental_controls_usage_limit_mode
   - type: divider
+  - entity: sensor.parental_controls_aggregate_usage_today
+  - entity: sensor.parental_controls_aggregate_video_usage_today
+  - entity: sensor.parental_controls_aggregate_audio_usage_today
   - entity: sensor.parental_controls_last_blocked
 ```
 

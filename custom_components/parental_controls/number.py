@@ -12,12 +12,16 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CONF_AUDIO_DAILY_LIMIT,
     CONF_MAX_STRIKES,
     CONF_MEDIA_USAGE_DAILY_LIMIT,
     CONF_TRACKED_APPS_DAILY_LIMIT,
+    CONF_VIDEO_DAILY_LIMIT,
+    DEFAULT_AUDIO_DAILY_LIMIT,
     DEFAULT_MAX_STRIKES,
     DEFAULT_MEDIA_USAGE_DAILY_LIMIT,
     DEFAULT_TRACKED_APPS_DAILY_LIMIT,
+    DEFAULT_VIDEO_DAILY_LIMIT,
     DOMAIN,
 )
 
@@ -46,6 +50,8 @@ async def async_setup_entry(
             TrackedAppsLimitNumber(coordinator, config_entry),
             MediaUsageLimitNumber(coordinator, config_entry),
             MaxStrikesNumber(coordinator, config_entry),
+            VideoDailyLimitNumber(coordinator, config_entry),
+            AudioDailyLimitNumber(coordinator, config_entry),
         ]
     )
 
@@ -159,3 +165,57 @@ class MaxStrikesNumber(ParentalControlsNumberBase):
     async def async_set_native_value(self, value: float) -> None:
         """Set a new max strikes value."""
         self._coordinator.set_runtime_setting(CONF_MAX_STRIKES, int(value))
+
+
+class VideoDailyLimitNumber(ParentalControlsNumberBase):
+    """Number entity for video daily limit in minutes."""
+
+    _attr_icon = "mdi:television"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 1440
+    _attr_native_step = 15
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_video_daily_limit"
+        self._attr_name = "Video daily limit"
+
+    @property
+    def native_value(self) -> float:
+        """Return current video daily limit."""
+        return self._coordinator._get_option(
+            CONF_VIDEO_DAILY_LIMIT, DEFAULT_VIDEO_DAILY_LIMIT
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set a new video daily limit."""
+        self._coordinator.set_runtime_setting(CONF_VIDEO_DAILY_LIMIT, value)
+
+
+class AudioDailyLimitNumber(ParentalControlsNumberBase):
+    """Number entity for audio daily limit in minutes."""
+
+    _attr_icon = "mdi:music"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 1440
+    _attr_native_step = 15
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_audio_daily_limit"
+        self._attr_name = "Audio daily limit"
+
+    @property
+    def native_value(self) -> float:
+        """Return current audio daily limit."""
+        return self._coordinator._get_option(
+            CONF_AUDIO_DAILY_LIMIT, DEFAULT_AUDIO_DAILY_LIMIT
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set a new audio daily limit."""
+        self._coordinator.set_runtime_setting(CONF_AUDIO_DAILY_LIMIT, value)

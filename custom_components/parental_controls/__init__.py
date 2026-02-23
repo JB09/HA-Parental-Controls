@@ -97,13 +97,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to a new version."""
-    if entry.version > 2:
+    if entry.version > 3:
         return False
+
+    new_data = dict(entry.data)
+    new_options = dict(entry.options)
 
     if entry.version == 1:
         _LOGGER.info("Migrating config entry from version 1 to 2")
-        new_data = dict(entry.data)
-        new_options = dict(entry.options)
 
         # Migrate youtube_daily_limit -> tracked_apps_daily_limit
         if "youtube_daily_limit" in new_data:
@@ -123,6 +124,24 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry, data=new_data, options=new_options, version=2
         )
         _LOGGER.info("Migration to version 2 successful")
+
+    if entry.version == 2:
+        _LOGGER.info("Migrating config entry from version 2 to 3")
+        new_data = dict(entry.data)
+        new_options = dict(entry.options)
+
+        new_data.setdefault("usage_limit_mode", "per_device")
+        new_data.setdefault("video_daily_limit", 0)
+        new_data.setdefault("audio_daily_limit", 0)
+
+        new_options.setdefault("usage_limit_mode", "per_device")
+        new_options.setdefault("video_daily_limit", 0)
+        new_options.setdefault("audio_daily_limit", 0)
+
+        hass.config_entries.async_update_entry(
+            entry, data=new_data, options=new_options, version=3
+        )
+        _LOGGER.info("Migration to version 3 successful")
 
     return True
 

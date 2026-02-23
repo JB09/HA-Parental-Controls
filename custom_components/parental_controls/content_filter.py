@@ -54,6 +54,13 @@ class FilterConfig:
     tracked_apps_usage_today: float  # aggregate minutes across tracked apps
     total_usage_today: float  # minutes
     cached_results: dict[str, str]
+    usage_limit_mode: str  # "per_device" or "aggregate"
+    aggregate_total_usage_today: float  # sum across all devices
+    aggregate_tracked_apps_usage_today: float  # sum of tracked apps across all devices
+    video_daily_limit: float  # 0 = unlimited
+    audio_daily_limit: float  # 0 = unlimited
+    effective_video_usage_today: float  # per-device or aggregate based on mode
+    effective_audio_usage_today: float  # per-device or aggregate based on mode
 
 
 def _parse_time(time_str: str) -> time:
@@ -65,6 +72,30 @@ def _parse_time(time_str: str) -> time:
 def _normalize_list(csv_string: str) -> list[str]:
     """Split comma-separated string into normalized lowercase list."""
     return [item.strip().lower() for item in csv_string.split(",") if item.strip()]
+
+
+def classify_media_type(media: MediaInfo) -> str:
+    """Classify media as 'audio' or 'video' using heuristics.
+
+    Audio has predictable patterns: media_artist present without episode
+    markers (the typical music signature). Everything else defaults to
+    video (TV series, movies, live TV, clips, unknown content).
+
+    Uses the same _has_episode_pattern() infrastructure as cache_key().
+    """
+    title = media.media_title.strip()
+    artist = media.media_artist.strip()
+
+    # Episode patterns -> video (TV series)
+    if _has_episode_pattern(title) or (artist and _has_episode_pattern(artist)):
+        return "video"
+
+    # Artist present without episode pattern -> audio (music)
+    if artist:
+        return "audio"
+
+    # Default: video (movies, live TV, clips, unknown)
+    return "video"
 
 
 def _check_schedule(current_time: time, config: FilterConfig) -> FilterResult | None:
@@ -300,27 +331,65 @@ def _check_time_limits(media: MediaInfo, config: FilterConfig) -> FilterResult |
     """Layer 8: Check daily usage time limits."""
     app_lower = media.app_name.lower()
 
+    # Pick effective values based on usage limit mode
+    if config.usage_limit_mode == "aggregate":
+        effective_total = config.aggregate_total_usage_today
+        effective_tracked = config.aggregate_tracked_apps_usage_today
+    else:
+        effective_total = config.total_usage_today
+        effective_tracked = config.tracked_apps_usage_today
+
+    mode_label = f" ({config.usage_limit_mode})" if config.usage_limit_mode == "aggregate" else ""
+
     # Tracked apps basket limit (0 = unlimited)
     if (
         config.tracked_apps_daily_limit > 0
         and app_lower in config.tracked_apps
-        and config.tracked_apps_usage_today >= config.tracked_apps_daily_limit
+        and effective_tracked >= config.tracked_apps_daily_limit
     ):
         return FilterResult(
             action="block",
-            reason=f"Tracked apps daily limit reached ({config.tracked_apps_daily_limit:.0f} minutes)",
+            reason=f"Tracked apps daily limit reached ({config.tracked_apps_daily_limit:.0f} minutes){mode_label}",
             layer=8,
             should_strike=False,
         )
 
     # Total media usage limit (0 = unlimited)
-    if config.media_usage_daily_limit > 0 and config.total_usage_today >= config.media_usage_daily_limit:
+    if config.media_usage_daily_limit > 0 and effective_total >= config.media_usage_daily_limit:
         return FilterResult(
             action="block",
-            reason=f"Total daily media usage limit reached ({config.media_usage_daily_limit:.0f} minutes)",
+            reason=f"Total daily media usage limit reached ({config.media_usage_daily_limit:.0f} minutes){mode_label}",
             layer=8,
             should_strike=False,
         )
+
+    # Video daily limit (0 = unlimited)
+    media_type = classify_media_type(media)
+    if (
+        config.video_daily_limit > 0
+        and media_type == "video"
+        and config.effective_video_usage_today >= config.video_daily_limit
+    ):
+        return FilterResult(
+            action="block",
+            reason=f"Video daily limit reached ({config.video_daily_limit:.0f} minutes){mode_label}",
+            layer=8,
+            should_strike=False,
+        )
+
+    # Audio daily limit (0 = unlimited)
+    if (
+        config.audio_daily_limit > 0
+        and media_type == "audio"
+        and config.effective_audio_usage_today >= config.audio_daily_limit
+    ):
+        return FilterResult(
+            action="block",
+            reason=f"Audio daily limit reached ({config.audio_daily_limit:.0f} minutes){mode_label}",
+            layer=8,
+            should_strike=False,
+        )
+
     return None
 
 
