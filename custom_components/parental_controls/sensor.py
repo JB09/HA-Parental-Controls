@@ -12,7 +12,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CONF_MONITORED_PLAYERS, DOMAIN, device_slug
+from .const import (
+    CONF_MONITORED_PLAYERS,
+    CONF_USAGE_LIMIT_MODE,
+    DEFAULT_USAGE_LIMIT_MODE,
+    DOMAIN,
+    device_slug,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -341,6 +347,12 @@ class AggregateUsageSensor(ParentalControlsSensorBase):
         self._attr_unique_id = f"{config_entry.entry_id}_aggregate_usage_today"
         self._attr_name = "Aggregate usage today"
 
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Only update on aggregate sentinel notifications."""
+        if entity_id == "__aggregate__":
+            self.async_write_ha_state()
+
     @property
     def native_value(self) -> float:
         """Return aggregate usage today in minutes."""
@@ -356,7 +368,7 @@ class AggregateUsageSensor(ParentalControlsSensorBase):
         return {
             "per_device_usage": per_device,
             "usage_limit_mode": self._coordinator._get_option(
-                "usage_limit_mode", "per_device"
+                CONF_USAGE_LIMIT_MODE, DEFAULT_USAGE_LIMIT_MODE
             ),
         }
 
@@ -376,6 +388,12 @@ class AggregateVideoUsageSensor(ParentalControlsSensorBase):
         super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_aggregate_video_usage_today"
         self._attr_name = "Aggregate video usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Only update on aggregate sentinel notifications."""
+        if entity_id == "__aggregate__":
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:
@@ -407,6 +425,12 @@ class AggregateAudioUsageSensor(ParentalControlsSensorBase):
         super().__init__(coordinator, config_entry)
         self._attr_unique_id = f"{config_entry.entry_id}_aggregate_audio_usage_today"
         self._attr_name = "Aggregate audio usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Only update on aggregate sentinel notifications."""
+        if entity_id == "__aggregate__":
+            self.async_write_ha_state()
 
     @property
     def native_value(self) -> float:
