@@ -17,6 +17,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 
 from .const import (
     CONF_ALLOWED_APPS,
+    CONF_AUDIO_DAILY_LIMIT,
     CONF_BLOCKED_APPS,
     CONF_BLOCKED_KEYWORDS,
     CONF_CONTENT_RATING_MAX,
@@ -36,7 +37,10 @@ from .const import (
     CONF_TTS_SERVICE,
     CONF_TRACKED_APPS,
     CONF_TRACKED_APPS_DAILY_LIMIT,
+    CONF_USAGE_LIMIT_MODE,
+    CONF_VIDEO_DAILY_LIMIT,
     DEFAULT_ALLOWED_APPS,
+    DEFAULT_AUDIO_DAILY_LIMIT,
     DEFAULT_BLOCKED_APPS,
     DEFAULT_BLOCKED_KEYWORDS,
     DEFAULT_CONTENT_RATING,
@@ -55,6 +59,8 @@ from .const import (
     DEFAULT_TTS_SERVICE,
     DEFAULT_TRACKED_APPS,
     DEFAULT_TRACKED_APPS_DAILY_LIMIT,
+    DEFAULT_USAGE_LIMIT_MODE,
+    DEFAULT_VIDEO_DAILY_LIMIT,
     ACTION_UNLOCK_DEVICE,
     DOMAIN,
     LOCKOUT_COOLDOWN_SECONDS,
@@ -66,6 +72,7 @@ from .content_filter import (
     MediaInfo,
     build_openai_prompt,
     cache_key,
+    classify_media_type,
     parse_openai_response,
     run_local_filters,
 )
@@ -102,6 +109,10 @@ class ParentalControlsCoordinator:
         self._parent_mode: dict[str, bool] = {}
         # Global master toggle
         self._global_enabled: bool = True
+        # Per-device media type usage: entity_id -> {"audio": min, "video": min}
+        self._media_type_usage_today: dict[str, dict[str, float]] = {}
+        # Media class at play start: entity_id -> "audio" or "video"
+        self._play_media_class: dict[str, str] = {}
         # Runtime settings: mutable overrides for config entry options.
         # Written by number/select entities, checked before config_entry.options.
         # Persisted to config entry only on unload to avoid reload loops.
@@ -299,11 +310,20 @@ class ParentalControlsCoordinator:
         app_usage = self._app_usage_today.get(entity_id, {})
         return sum(mins for app, mins in app_usage.items() if app in tracked)
 
-    def start_tracking_playback(self, entity_id: str) -> None:
+    def start_tracking_playback(
+        self, entity_id: str, media: MediaInfo | None = None
+    ) -> None:
         """Mark that a device started playing (for usage calculation)."""
         self._play_start[entity_id] = dt_util.now()
+        if media is not None:
+            self._play_media_class[entity_id] = classify_media_type(media)
 
-    def stop_tracking_playback(self, entity_id: str, app_name: str = "") -> None:
+    def stop_tracking_playback(
+        self,
+        entity_id: str,
+        app_name: str = "",
+        media: MediaInfo | None = None,
+    ) -> None:
         """Mark that a device stopped playing, accumulate usage."""
         start = self._play_start.pop(entity_id, None)
         if start is None:
@@ -319,21 +339,87 @@ class ParentalControlsCoordinator:
             self._app_usage_today[entity_id][app_key] = (
                 self._app_usage_today[entity_id].get(app_key, 0.0) + elapsed
             )
+
+        # Accumulate media type usage
+        media_class = self._play_media_class.pop(entity_id, None)
+        if media_class is None and media is not None:
+            media_class = classify_media_type(media)
+        if media_class is None:
+            media_class = "video"  # default fallback
+        if entity_id not in self._media_type_usage_today:
+            self._media_type_usage_today[entity_id] = {}
+        self._media_type_usage_today[entity_id][media_class] = (
+            self._media_type_usage_today[entity_id].get(media_class, 0.0) + elapsed
+        )
+
         self._notify_entity_update(entity_id)
+        self._notify_entity_update("__aggregate__")
 
     def reset_daily_usage(self) -> None:
         """Reset all usage counters (called at midnight)."""
         self._usage_today.clear()
         self._app_usage_today.clear()
         self._play_start.clear()
+        self._media_type_usage_today.clear()
+        self._play_media_class.clear()
         _LOGGER.info("Daily usage counters reset")
         for entity_id in self.monitored_players:
             self._notify_entity_update(entity_id)
+        self._notify_entity_update("__aggregate__")
 
-    def restore_usage(self, entity_id: str, total: float, app_usage: dict[str, float]) -> None:
+    def restore_usage(
+        self,
+        entity_id: str,
+        total: float,
+        app_usage: dict[str, float],
+        media_type_usage: dict[str, float] | None = None,
+    ) -> None:
         """Restore usage from persistent storage."""
         self._usage_today[entity_id] = total
         self._app_usage_today[entity_id] = app_usage
+        if media_type_usage is not None:
+            self._media_type_usage_today[entity_id] = media_type_usage
+
+    # --- Aggregate Usage Getters ---
+
+    def get_aggregate_usage_today(self) -> float:
+        """Get total usage today summed across all monitored devices."""
+        return sum(
+            self._usage_today.get(eid, 0.0) for eid in self.monitored_players
+        )
+
+    def get_aggregate_tracked_apps_usage_today(self) -> float:
+        """Get tracked apps usage summed across all monitored devices."""
+        return sum(
+            self.get_tracked_apps_usage_today(eid)
+            for eid in self.monitored_players
+        )
+
+    def get_aggregate_video_usage_today(self) -> float:
+        """Get video usage minutes summed across all monitored devices."""
+        return sum(
+            self.get_device_video_usage_today(eid)
+            for eid in self.monitored_players
+        )
+
+    def get_aggregate_audio_usage_today(self) -> float:
+        """Get audio usage minutes summed across all monitored devices."""
+        return sum(
+            self.get_device_audio_usage_today(eid)
+            for eid in self.monitored_players
+        )
+
+    def get_media_type_usage_today(self, entity_id: str) -> dict[str, float]:
+        """Get per-device media type usage breakdown."""
+        return dict(self._media_type_usage_today.get(entity_id, {}))
+
+    def get_device_video_usage_today(self, entity_id: str) -> float:
+        """Get video usage minutes for a single device."""
+        return self._media_type_usage_today.get(entity_id, {}).get("video", 0.0)
+
+    def get_device_audio_usage_today(self, entity_id: str) -> float:
+        """Get audio usage minutes for a single device."""
+        return self._media_type_usage_today.get(entity_id, {}).get("audio", 0.0)
 
     # --- Tracking Schedule Helpers ---
 
@@ -458,7 +544,14 @@ class ParentalControlsCoordinator:
         if old_state and old_state.state == STATE_PLAYING and new_state.state != STATE_PLAYING:
             if not self.is_parent_mode(entity_id):
                 app_name = old_state.attributes.get("app_name", "")
-                self.stop_tracking_playback(entity_id, app_name)
+                old_media = MediaInfo(
+                    entity_id=entity_id,
+                    app_name=app_name,
+                    media_title=old_state.attributes.get("media_title", ""),
+                    media_artist=old_state.attributes.get("media_artist", ""),
+                    media_content_type=old_state.attributes.get("media_content_type", ""),
+                )
+                self.stop_tracking_playback(entity_id, app_name, old_media)
             return
 
         # Only process when transitioning to playing
@@ -472,7 +565,14 @@ class ParentalControlsCoordinator:
         # Check if parental controls are enabled for this device
         if not self.is_device_enabled(entity_id):
             if self._should_track_now():
-                self.start_tracking_playback(entity_id)
+                disabled_media = MediaInfo(
+                    entity_id=entity_id,
+                    app_name=new_state.attributes.get("app_name", ""),
+                    media_title=new_state.attributes.get("media_title", ""),
+                    media_artist=new_state.attributes.get("media_artist", ""),
+                    media_content_type=new_state.attributes.get("media_content_type", ""),
+                )
+                self.start_tracking_playback(entity_id, disabled_media)
             return
 
         # Check cooldown for locked devices
@@ -503,6 +603,7 @@ class ParentalControlsCoordinator:
         )
 
         # Build filter config
+        usage_mode = self._get_option(CONF_USAGE_LIMIT_MODE, DEFAULT_USAGE_LIMIT_MODE)
         config = FilterConfig(
             blocked_apps=self._get_blocked_apps(),
             allowed_apps=self._get_allowed_apps(),
@@ -520,6 +621,19 @@ class ParentalControlsCoordinator:
             tracked_apps_usage_today=self.get_tracked_apps_usage_today(entity_id),
             total_usage_today=self.get_usage_today(entity_id),
             cached_results=self._openai_cache,
+            usage_limit_mode=usage_mode,
+            aggregate_total_usage_today=self.get_aggregate_usage_today(),
+            aggregate_tracked_apps_usage_today=self.get_aggregate_tracked_apps_usage_today(),
+            video_daily_limit=self._get_option(CONF_VIDEO_DAILY_LIMIT, DEFAULT_VIDEO_DAILY_LIMIT),
+            audio_daily_limit=self._get_option(CONF_AUDIO_DAILY_LIMIT, DEFAULT_AUDIO_DAILY_LIMIT),
+            effective_video_usage_today=(
+                self.get_aggregate_video_usage_today() if usage_mode == "aggregate"
+                else self.get_device_video_usage_today(entity_id)
+            ),
+            effective_audio_usage_today=(
+                self.get_aggregate_audio_usage_today() if usage_mode == "aggregate"
+                else self.get_device_audio_usage_today(entity_id)
+            ),
         )
 
         await self._run_pipeline(entity_id, media, config)
@@ -549,7 +663,7 @@ class ParentalControlsCoordinator:
         else:
             # Content allowed, start tracking usage
             if self._should_track_now():
-                self.start_tracking_playback(entity_id)
+                self.start_tracking_playback(entity_id, media)
             _LOGGER.debug(
                 "Content allowed on %s: %s - %s (layer %d: %s)",
                 entity_id,

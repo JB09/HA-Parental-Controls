@@ -14,13 +14,16 @@ from .const import (
     CONF_CONTENT_RATING_MAX,
     CONF_FILTER_STRICTNESS,
     CONF_MUSIC_RATING_MAX,
+    CONF_USAGE_LIMIT_MODE,
     CONTENT_RATINGS,
     DEFAULT_CONTENT_RATING,
     DEFAULT_FILTER_STRICTNESS,
     DEFAULT_MUSIC_RATING,
+    DEFAULT_USAGE_LIMIT_MODE,
     DOMAIN,
     FILTER_STRICTNESS_OPTIONS,
     MUSIC_RATINGS,
+    USAGE_LIMIT_MODE_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +41,7 @@ async def async_setup_entry(
             ContentRatingSelect(coordinator, config_entry),
             MusicRatingSelect(coordinator, config_entry),
             FilterStrictnessSelect(coordinator, config_entry),
+            UsageLimitModeSelect(coordinator, config_entry),
         ]
     )
 
@@ -144,3 +148,27 @@ class FilterStrictnessSelect(ParentalControlsSelectBase):
     async def async_select_option(self, option: str) -> None:
         """Set a new strictness level."""
         self._coordinator.set_runtime_setting(CONF_FILTER_STRICTNESS, option)
+
+
+class UsageLimitModeSelect(ParentalControlsSelectBase):
+    """Select entity for usage limit enforcement mode."""
+
+    _attr_icon = "mdi:account-group"
+
+    def __init__(self, coordinator: Any, config_entry: ConfigEntry) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_usage_limit_mode"
+        self._attr_name = "Usage limit mode"
+        self._attr_options = USAGE_LIMIT_MODE_OPTIONS
+
+    @property
+    def current_option(self) -> str:
+        """Return current usage limit mode."""
+        return self._coordinator._get_option(
+            CONF_USAGE_LIMIT_MODE, DEFAULT_USAGE_LIMIT_MODE
+        )
+
+    async def async_select_option(self, option: str) -> None:
+        """Set a new usage limit mode."""
+        self._coordinator.set_runtime_setting(CONF_USAGE_LIMIT_MODE, option)

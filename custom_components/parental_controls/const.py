@@ -31,6 +31,9 @@ CONF_PUSH_NOTIFY_SERVICES = "push_notify_services"
 CONF_OPENAI_ENABLED = "openai_enabled"
 CONF_OPENAI_AGENT_ID = "openai_agent_id"
 CONF_FILTER_STRICTNESS = "filter_strictness"
+CONF_USAGE_LIMIT_MODE = "usage_limit_mode"
+CONF_VIDEO_DAILY_LIMIT = "video_daily_limit"
+CONF_AUDIO_DAILY_LIMIT = "audio_daily_limit"
 
 # Defaults
 DEFAULT_BLOCKED_APPS = "TikTok,Twitch,YouTube"
@@ -52,11 +55,15 @@ DEFAULT_PUSH_NOTIFY_SERVICES: list[str] = []
 DEFAULT_OPENAI_ENABLED = False
 DEFAULT_OPENAI_AGENT_ID = ""
 DEFAULT_FILTER_STRICTNESS = "moderate"
+DEFAULT_USAGE_LIMIT_MODE = "per_device"  # "per_device" or "aggregate"
+DEFAULT_VIDEO_DAILY_LIMIT = 0  # 0 = unlimited
+DEFAULT_AUDIO_DAILY_LIMIT = 0  # 0 = unlimited
 
 # Content rating options
 CONTENT_RATINGS = ["G", "PG", "PG-13", "R", "Unrated"]
 MUSIC_RATINGS = ["Clean Only", "Allow Mild Language", "Allow All"]
 FILTER_STRICTNESS_OPTIONS = ["relaxed", "moderate", "strict"]
+USAGE_LIMIT_MODE_OPTIONS = ["per_device", "aggregate"]
 
 # Repeat-block cooldown in seconds
 LOCKOUT_COOLDOWN_SECONDS = 10

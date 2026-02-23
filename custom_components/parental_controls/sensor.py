@@ -49,6 +49,9 @@ async def async_setup_entry(
         entities.append(TrackedAppsUsageSensor(coordinator, config_entry, player_id))
 
     entities.append(LastBlockedSensor(coordinator, config_entry))
+    entities.append(AggregateUsageSensor(coordinator, config_entry))
+    entities.append(AggregateVideoUsageSensor(coordinator, config_entry))
+    entities.append(AggregateAudioUsageSensor(coordinator, config_entry))
 
     async_add_entities(entities)
 
@@ -177,8 +180,9 @@ class UsageTodaySensor(ParentalControlsSensorBase):
             try:
                 total = float(last_state.state)
                 app_usage = last_state.attributes.get("app_usage", {})
+                media_type_usage = last_state.attributes.get("media_type_usage")
                 self._coordinator.restore_usage(
-                    self._player_entity_id, total, app_usage
+                    self._player_entity_id, total, app_usage, media_type_usage
                 )
             except (ValueError, TypeError):
                 _LOGGER.warning(
@@ -198,6 +202,9 @@ class UsageTodaySensor(ParentalControlsSensorBase):
         return {
             "monitored_player": self._player_entity_id,
             "app_usage": self._coordinator.get_all_app_usage_today(
+                self._player_entity_id
+            ),
+            "media_type_usage": self._coordinator.get_media_type_usage_today(
                 self._player_entity_id
             ),
         }
@@ -316,3 +323,101 @@ class LastBlockedSensor(ParentalControlsSensorBase):
             "device": self._last_device,
             "layer": self._last_layer,
         }
+
+
+class AggregateUsageSensor(ParentalControlsSensorBase):
+    """Sensor showing aggregate usage today across all monitored devices."""
+
+    _attr_icon = "mdi:sigma"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(
+        self,
+        coordinator: Any,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_aggregate_usage_today"
+        self._attr_name = "Aggregate usage today"
+
+    @property
+    def native_value(self) -> float:
+        """Return aggregate usage today in minutes."""
+        return round(self._coordinator.get_aggregate_usage_today(), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return per-device breakdown and usage limit mode."""
+        per_device = {
+            eid: round(self._coordinator.get_usage_today(eid), 1)
+            for eid in self._coordinator.monitored_players
+        }
+        return {
+            "per_device_usage": per_device,
+            "usage_limit_mode": self._coordinator._get_option(
+                "usage_limit_mode", "per_device"
+            ),
+        }
+
+
+class AggregateVideoUsageSensor(ParentalControlsSensorBase):
+    """Sensor showing aggregate video usage today across all monitored devices."""
+
+    _attr_icon = "mdi:television"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(
+        self,
+        coordinator: Any,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_aggregate_video_usage_today"
+        self._attr_name = "Aggregate video usage today"
+
+    @property
+    def native_value(self) -> float:
+        """Return aggregate video usage today in minutes."""
+        return round(self._coordinator.get_aggregate_video_usage_today(), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return per-device video breakdown."""
+        per_device = {
+            eid: round(self._coordinator.get_device_video_usage_today(eid), 1)
+            for eid in self._coordinator.monitored_players
+        }
+        return {"per_device_video_usage": per_device}
+
+
+class AggregateAudioUsageSensor(ParentalControlsSensorBase):
+    """Sensor showing aggregate audio usage today across all monitored devices."""
+
+    _attr_icon = "mdi:music"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(
+        self,
+        coordinator: Any,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = f"{config_entry.entry_id}_aggregate_audio_usage_today"
+        self._attr_name = "Aggregate audio usage today"
+
+    @property
+    def native_value(self) -> float:
+        """Return aggregate audio usage today in minutes."""
+        return round(self._coordinator.get_aggregate_audio_usage_today(), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return per-device audio breakdown."""
+        per_device = {
+            eid: round(self._coordinator.get_device_audio_usage_today(eid), 1)
+            for eid in self._coordinator.monitored_players
+        }
+        return {"per_device_audio_usage": per_device}
