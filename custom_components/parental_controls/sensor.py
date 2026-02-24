@@ -58,6 +58,7 @@ async def async_setup_entry(
     entities.append(AggregateUsageSensor(coordinator, config_entry))
     entities.append(AggregateVideoUsageSensor(coordinator, config_entry))
     entities.append(AggregateAudioUsageSensor(coordinator, config_entry))
+    entities.append(AggregateTrackedAppsUsageSensor(coordinator, config_entry))
 
     async_add_entities(entities)
 
@@ -445,3 +446,46 @@ class AggregateAudioUsageSensor(ParentalControlsSensorBase):
             for eid in self._coordinator.monitored_players
         }
         return {"per_device_audio_usage": per_device}
+
+
+class AggregateTrackedAppsUsageSensor(ParentalControlsSensorBase):
+    """Sensor showing aggregate tracked apps usage today across all devices."""
+
+    _attr_icon = "mdi:apps"
+    _attr_native_unit_of_measurement = "min"
+
+    def __init__(
+        self,
+        coordinator: Any,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator, config_entry)
+        self._attr_unique_id = (
+            f"{config_entry.entry_id}_aggregate_tracked_apps_usage_today"
+        )
+        self._attr_name = "Aggregate tracked apps usage today"
+
+    @callback
+    def _handle_coordinator_update(self, entity_id: str) -> None:
+        """Only update on aggregate sentinel notifications."""
+        if entity_id == "__aggregate__":
+            self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float:
+        """Return aggregate tracked apps usage today in minutes."""
+        return round(self._coordinator.get_aggregate_tracked_apps_usage_today(), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return per-device tracked apps breakdown."""
+        tracked = self._coordinator._get_tracked_apps()
+        per_device = {
+            eid: round(self._coordinator.get_tracked_apps_usage_today(eid), 1)
+            for eid in self._coordinator.monitored_players
+        }
+        return {
+            "per_device_tracked_apps_usage": per_device,
+            "tracked_apps": tracked,
+        }

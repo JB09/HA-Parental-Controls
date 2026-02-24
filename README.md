@@ -122,6 +122,7 @@ Global entities:
 | `sensor.parental_controls_aggregate_usage_today` | Sensor | Total usage across all devices (min) |
 | `sensor.parental_controls_aggregate_video_usage_today` | Sensor | Video usage across all devices (min) |
 | `sensor.parental_controls_aggregate_audio_usage_today` | Sensor | Audio usage across all devices (min) |
+| `sensor.parental_controls_aggregate_tracked_apps_usage_today` | Sensor | Tracked apps usage across all devices (min) |
 | `number.parental_controls_tracked_apps_limit` | Number | Tracked apps daily limit (min) |
 | `number.parental_controls_media_usage_limit` | Number | Total media usage limit (min) |
 | `number.parental_controls_video_daily_limit` | Number | Video daily limit (min, 0 = unlimited) |
@@ -172,6 +173,7 @@ entities:
   - entity: sensor.parental_controls_aggregate_usage_today
   - entity: sensor.parental_controls_aggregate_video_usage_today
   - entity: sensor.parental_controls_aggregate_audio_usage_today
+  - entity: sensor.parental_controls_aggregate_tracked_apps_usage_today
   - entity: sensor.parental_controls_last_blocked
 ```
 
