@@ -278,6 +278,20 @@ class ParentalControlsCoordinator:
             # Flush any in-progress tracking before switching to parent mode
             self.stop_tracking_playback(entity_id)
         self._parent_mode[entity_id] = enabled
+        if not enabled:
+            # Resume tracking if device is currently playing
+            state = self.hass.states.get(entity_id)
+            if state and state.state == STATE_PLAYING:
+                media = MediaInfo(
+                    entity_id=entity_id,
+                    app_name=state.attributes.get("app_name", ""),
+                    media_title=state.attributes.get("media_title", ""),
+                    media_artist=state.attributes.get("media_artist", ""),
+                    media_content_type=state.attributes.get(
+                        "media_content_type", ""
+                    ),
+                )
+                self.start_tracking_playback(entity_id, media)
         _LOGGER.info(
             "Parent mode %s for %s",
             "enabled" if enabled else "disabled",
