@@ -190,6 +190,9 @@ def _register_services(
     async def handle_unlock_device(call: ServiceCall) -> None:
         """Reset strikes and unlock a specific device."""
         entity_id = call.data["entity_id"]
+        if entity_id not in coordinator.monitored_players:
+            _LOGGER.warning("Service called for unmonitored device: %s", entity_id)
+            return
         coordinator.reset_strikes(entity_id)
         _LOGGER.info("Service call: unlocked device %s", entity_id)
 
@@ -218,6 +221,9 @@ def _register_services(
     async def handle_set_parent_mode(call: ServiceCall) -> None:
         """Enable or disable parent mode for a media player."""
         entity_id = call.data["entity_id"]
+        if entity_id not in coordinator.monitored_players:
+            _LOGGER.warning("Service called for unmonitored device: %s", entity_id)
+            return
         enabled = call.data["enabled"]
         coordinator.set_parent_mode(entity_id, enabled)
         _LOGGER.info(
