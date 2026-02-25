@@ -6,6 +6,7 @@ orchestrates the content filter pipeline + blocking actions.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -65,6 +66,7 @@ from .const import (
     DOMAIN,
     LOCKOUT_COOLDOWN_SECONDS,
     OPENAI_CACHE_MAX_ENTRIES,
+    TTS_RAOP_TEARDOWN_DELAY,
 )
 from .content_filter import (
     FilterConfig,
@@ -789,6 +791,10 @@ class ParentalControlsCoordinator:
         tts_service = self._get_option(CONF_TTS_SERVICE, DEFAULT_TTS_SERVICE)
 
         if tts_enabled and tts_service:
+            # Allow the media player's streaming session to fully tear down
+            # after media_stop before attempting to stream TTS audio.
+            await asyncio.sleep(TTS_RAOP_TEARDOWN_DELAY)
+
             tts_message = (
                 "This device is locked. Ask a parent to unlock it."
                 if self.is_device_locked(entity_id)

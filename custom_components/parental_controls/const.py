@@ -68,6 +68,10 @@ USAGE_LIMIT_MODE_OPTIONS = ["per_device", "aggregate"]
 # Repeat-block cooldown in seconds
 LOCKOUT_COOLDOWN_SECONDS = 10
 
+# Delay (seconds) after media_stop to let AirPlay/RAOP release the
+# streaming session before TTS attempts to stream new audio.
+TTS_RAOP_TEARDOWN_DELAY = 1.5
+
 # OpenAI cache max entries
 OPENAI_CACHE_MAX_ENTRIES = 200
 
